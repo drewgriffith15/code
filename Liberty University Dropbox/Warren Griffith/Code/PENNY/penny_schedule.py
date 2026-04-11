@@ -63,10 +63,16 @@ def create_gmail_event(title, date, time_start, time_end, notes=None):
         "description": notes or "",
         "start": {"dateTime": start_dt, "timeZone": TIMEZONE_IANA},
         "end":   {"dateTime": end_dt,   "timeZone": TIMEZONE_IANA},
+        "attendees": [{"email": "wgriffith2@liberty.edu"}],
+        "reminders": {
+            "useDefault": False,
+            "overrides": [{"method": "popup", "minutes": 30}],
+        },
     }
 
     created = service.events().insert(calendarId="primary", body=event).execute()
     print(f"Gmail event created: {title} | {date} {time_start}–{time_end}")
+    print(f"  Outlook invite sent to: wgriffith2@liberty.edu")
     print(f"  Link: {created.get('htmlLink')}")
 
 
