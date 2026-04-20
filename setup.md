@@ -1,8 +1,8 @@
-# TANK Setup
+# tank Setup
 
 ## Purpose
 
-TANK is the Liberty University work agent for technical tasks that fall into three lanes. The name is inspired by Tank from *The Matrix* and expands as **Tactical Analytics Network Knowledgebase**.
+tank is the Liberty University work agent for technical tasks that fall into three lanes. The name is inspired by Tank from *The Matrix* and expands as **Tactical Analytics Network Knowledgebase**.
 
 - Oracle 19c data engineering
 - Python scripting and automation

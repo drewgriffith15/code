@@ -1,10 +1,10 @@
 # TANK — Tactical Analytics Network Knowledgebase
 
-TANK is the Liberty University work skill for Codex. The name is inspired by Tank from *The Matrix*, the operator behind the screens who loads programs, reads raw code, and keeps the team moving. In this setup, TANK stands for **Tactical Analytics Network Knowledgebase**.
+tank is the Liberty University work skill for Codex. The name is inspired by Tank from *The Matrix*, the operator behind the screens who loads programs, reads raw code, and keeps the team moving. In this setup, TANK stands for **Tactical Analytics Network Knowledgebase**.
 
 It handles Oracle 19c data engineering, Python scripting, and ad-hoc SQL for work tasks in BitBucket projects.
 
-TANK exists to provide a clean, work-specific operating model for BitBucket projects and to give you a single launcher for technical work.
+tank exists to provide a clean, work-specific operating model for BitBucket projects and to give you a single launcher for technical work.
 
 When the global Codex `tank` skill is invoked, it should defer to this folder as the source of truth for workflow behavior.
 
@@ -12,15 +12,17 @@ When the global Codex `tank` skill is invoked, it should defer to this folder as
 
 ## Purpose
 
-TANK is the work-side technical workflow for Liberty University projects.
+tank is the work-side technical workflow for Liberty University projects.
 
-Use TANK for:
+Use tank for:
 - Building or updating Oracle 19c ETL and analytics workflows
 - Writing or revising Python automation, API integration, and scheduler helpers
 - Writing ad-hoc Oracle 19c queries for investigation and validation
 - Updating project PRDs before implementation when that workflow is needed
 - Updating project README documentation when asked
 - Generating ServiceNow-ready work notes when that workflow is needed
+
+Worknotes use the same concise template across the `data-engineering`, `python-scripting`, and `ad-hoc-sql` skills.
 
 ---
 
@@ -50,7 +52,7 @@ Rules:
 
 **Local traceability.** Keep plans and work notes inside the project that owns the change.
 
-**Work-safe separation.** TANK is for Liberty University work only.
+**Work-safe separation.** tank is for Liberty University work only.
 
 ---
 
@@ -73,7 +75,7 @@ A workflow for read-only Oracle 19c ad-hoc query and investigation work.
 ## Current Structure
 
 ```text
-TANK/
+tank/
 ├── .agents/
 │   └── skills/
 │       ├── tank/
@@ -91,7 +93,7 @@ TANK/
 └── worknotes/
 ```
 
-This folder is TANK's local control plane. Project-specific prd, work notes, and active development live in the target Liberty project's local `sandbox/`, `prd/`, and `worknotes/` folders when that layout exists.
+This folder is tank's local control plane. Project-specific prd, work notes, and active development live in the target Liberty project's local `sandbox/`, `prd/`, and `worknotes/` folders when that layout exists.
 
 ---
 

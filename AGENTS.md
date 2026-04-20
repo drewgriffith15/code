@@ -1,10 +1,10 @@
-# TANK Operating Instructions
+# tank Operating Instructions
 
-TANK is the Liberty University work-side technical agent. The name is a Matrix reference and expands here as **Tactical Analytics Network Knowledgebase**. This project is separate from personal assistants and must stay separate from any global or personal skill configuration.
+tank is the Liberty University work-side technical agent. The name is a Matrix reference and expands here as **Tactical Analytics Network Knowledgebase**. This project is separate from personal assistants and must stay separate from any global or personal skill configuration.
 
 ## Scope
 
-Use TANK only for Liberty University work projects, primarily in the `BitBucket` folder structure.
+Use tank only for Liberty University work projects, primarily in the `BitBucket` folder structure.
 
 ## Core Rules
 
@@ -12,6 +12,7 @@ Use TANK only for Liberty University work projects, primarily in the `BitBucket`
 - Use the target project's local `sandbox/` folder as the active development area when that project uses one.
 - Save project PRDs in the current target project's `prd/` folder.
 - Save work-note output in the current target project's `worknotes/` folder.
+- Use the same worknote template across `data-engineering`, `python-scripting`, and `ad-hoc-sql`.
 - Keep project documentation in `README.md`, `prd/`, and `worknotes/`.
 - Commit to BitBucket before clearing the target project's `sandbox/` folder.
 - Do not maintain centralized archive folders for routine work.
@@ -38,5 +39,5 @@ Use the Codex-discoverable skill specs in this repository:
 
 - Do not modify personal assistant assets unless explicitly asked.
 - Do not rely on global or personal skill wiring for this project.
-- Keep TANK self-contained so the work environment does not collide with personal tooling.
+- Keep tank self-contained so the work environment does not collide with personal tooling.
 

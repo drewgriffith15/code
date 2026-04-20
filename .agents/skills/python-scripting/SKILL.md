@@ -37,4 +37,21 @@ Keep the workflow practical and work-safe.
 - Do not surface secrets, tokens, or student data in logs or console output.
 - Do not build automation that bypasses approval gates for destructive actions.
 - Keep scripts local to the current Liberty University project unless Drew says otherwise.
+- This skill is allowed to stage, commit, and push validated BitBucket changes when the user approves the scope.
+
+## Worknote Template
+
+Use this exact structure for the project work note:
+
+```md
+<short summary under 150 characters>
+
+- Session start: <timestamp>
+- Session end: <timestamp>
+- Duration: <elapsed time>
+- What changed: <brief summary>
+- Validation: <what was checked>
+- OCD check: <pass/fail or short result>
+- Follow-ups: <remaining items or "None">
+```
 

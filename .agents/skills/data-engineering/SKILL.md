@@ -119,6 +119,23 @@ Do not reference `_TEST` objects in diagnostics unless the user already created 
 - Include a ServiceNow-ready summary block that can be pasted directly into the ticket.
 - Provide a practical time estimate based on the actual work span, not a minimal coding-only guess.
 - Only recommend clearing `sandbox/` after the work note is written, cleanup is prepared, and the user confirms the local artifacts are no longer needed.
+- This skill is allowed to stage, commit, and push validated BitBucket changes when the user approves the scope.
+
+## Worknote Template
+
+Use this exact structure for the project work note:
+
+```md
+<short summary under 150 characters>
+
+- Session start: <timestamp>
+- Session end: <timestamp>
+- Duration: <elapsed time>
+- What changed: <brief summary>
+- Validation: <what was checked>
+- OCD check: <pass/fail or short result>
+- Follow-ups: <remaining items or "None">
+```
 
 ## Safety Rules
 
