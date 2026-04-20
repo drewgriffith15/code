@@ -1,6 +1,8 @@
 # TANK — Tactical Analytics Network Knowledgebase
 
-TANK is Drew's Liberty University work skill for Codex. It handles Oracle 19c data engineering, Python scripting, and ad-hoc SQL for work tasks in BitBucket projects.
+TANK is the Liberty University work skill for Codex. The name is inspired by Tank from *The Matrix*, the operator behind the screens who loads programs, reads raw code, and keeps the team moving. In this setup, TANK stands for **Tactical Analytics Network Knowledgebase**.
+
+It handles Oracle 19c data engineering, Python scripting, and ad-hoc SQL for work tasks in BitBucket projects.
 
 TANK exists to provide a clean, work-specific operating model for BitBucket projects and to give you a single launcher for technical work.
 
