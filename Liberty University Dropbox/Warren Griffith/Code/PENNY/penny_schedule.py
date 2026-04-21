@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""
-penny_schedule.py - PENNY calendar scheduling utility.
-Handles Gmail and Outlook calendar event creation. No AI calls.
-"""
-
 import json
 import os
 import pickle
@@ -12,12 +7,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load credentials from global .claude/.env
-ENV_PATH = Path.home() / ".claude" / ".env"
+# Load credentials from Dropbox
+ENV_PATH = Path.home() / "Dropbox (Liberty University)" / "Code" / ".env"
 load_dotenv(ENV_PATH)
 
 TIMEZONE_IANA   = os.getenv("PENNY_TIMEZONE", "America/New_York")
 TIMEZONE_OUTLOOK = os.getenv("PENNY_TIMEZONE_OUTLOOK", "Eastern Standard Time")
+OUTLOOK_EMAIL   = os.getenv("PENNY_OUTLOOK_EMAIL")
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +26,7 @@ def create_gmail_event(title, date, time_start, time_end, notes=None):
     from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
 
-    SCOPES = ["https://www.googleapis.com/auth/calendar"]
+    SCOPES = ["https://www.googleapis.com/auth/tasks", "https://www.googleapis.com/auth/calendar"]
 
     credentials_path = os.getenv("PENNY_GMAIL_CREDENTIALS_PATH")
     token_path       = os.getenv("PENNY_GMAIL_TOKEN_PATH")
@@ -63,16 +59,19 @@ def create_gmail_event(title, date, time_start, time_end, notes=None):
         "description": notes or "",
         "start": {"dateTime": start_dt, "timeZone": TIMEZONE_IANA},
         "end":   {"dateTime": end_dt,   "timeZone": TIMEZONE_IANA},
-        "attendees": [{"email": "wgriffith2@liberty.edu"}],
         "reminders": {
             "useDefault": False,
-            "overrides": [{"method": "popup", "minutes": 30}],
+            "overrides": [],
         },
     }
 
+    if OUTLOOK_EMAIL:
+        event["attendees"] = [{"email": OUTLOOK_EMAIL}]
+
     created = service.events().insert(calendarId="primary", body=event).execute()
     print(f"Gmail event created: {title} | {date} {time_start}–{time_end}")
-    print(f"  Outlook invite sent to: wgriffith2@liberty.edu")
+    if OUTLOOK_EMAIL:
+        print(f"  Outlook invite sent to: {OUTLOOK_EMAIL} (30-min reminder via Outlook)")
     print(f"  Link: {created.get('htmlLink')}")
 
 
@@ -142,8 +141,7 @@ def create_outlook_event(title, date, time_start, time_end, notes=None):
         "end":   {"dateTime": end_dt,   "timeZone": TIMEZONE_OUTLOOK},
         "showAs":                    "busy",
         "sensitivity":               "private",
-        "isReminderOn":              True,
-        "reminderMinutesBeforeStart": 30,
+        "isReminderOn":              False,
     }
 
     headers = {
@@ -160,7 +158,7 @@ def create_outlook_event(title, date, time_start, time_end, notes=None):
 
     if response.status_code == 201:
         print(f"Outlook event created: {title} | {date} {time_start}–{time_end}")
-        print("  Private, Busy, 30-min reminder applied.")
+        print("  Private, Busy, no reminder.")
     else:
         print(f"ERROR: Failed to create Outlook event ({response.status_code})")
         print(response.text)
@@ -171,12 +169,23 @@ def create_outlook_event(title, date, time_start, time_end, notes=None):
 # Command: create-file
 # ---------------------------------------------------------------------------
 
+def resolve_date(value):
+    """Resolve 'today' or 'tomorrow' to YYYY-MM-DD using the system clock."""
+    from datetime import date, timedelta
+    v = value.strip().lower()
+    if v == "today":
+        return str(date.today())
+    if v == "tomorrow":
+        return str(date.today() + timedelta(days=1))
+    return value.strip()
+
+
 def cmd_create_file(filepath):
     with open(filepath, encoding="utf-8") as f:
         data = json.load(f)
 
     title      = data.get("title", "").strip()
-    date       = data.get("date", "").strip()
+    date       = resolve_date(data.get("date", ""))
     time_start = data.get("time_start", "").strip()
     time_end   = data.get("time_end", "").strip()
     calendar   = data.get("calendar", "").strip().lower()
