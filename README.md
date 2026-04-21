@@ -1,28 +1,38 @@
 # TANK — Tactical Analytics Network Knowledgebase
 
-tank is the Liberty University work skill for Codex. The name is inspired by Tank from *The Matrix*, the operator behind the screens who loads programs, reads raw code, and keeps the team moving. In this setup, TANK stands for **Tactical Analytics Network Knowledgebase**.
+tank is the Liberty University work repo for Codex. The launcher skill is `grill-me`, inspired by Tank from *The Matrix*, the operator behind the screens who loads programs, reads raw code, and keeps the team moving.
 
-It handles Oracle 19c data engineering, Python scripting, and ad-hoc SQL for work tasks in BitBucket projects.
+It handles Oracle 19c data engineering, Python scripting, and version-controlled one-off SQL, Python, and prompt artifacts for work tasks in BitBucket projects.
 
-tank exists to provide a clean, work-specific operating model for BitBucket projects and to give you a single launcher for technical work.
+This repo exists to provide a clean, work-specific operating model for BitBucket projects and to give you a single launcher for technical work.
 
-When the global Codex `tank` skill is invoked, it should defer to this folder as the source of truth for workflow behavior.
+Primary entrypoints are the direct skills:
+
+- `data-engineering`
+- `python-scripting`
+- `gist-builder`
+
+Use `grill-me` only when you do not know which lane applies yet.
+
+Create a new skill only when the work is repeated, distinct, and stable enough that the same instructions keep coming back.
+
+When the global Codex `grill-me` skill is invoked, it should defer to this folder as the source of truth for workflow behavior.
 
 ---
 
 ## Purpose
 
-tank is the work-side technical workflow for Liberty University projects.
+This repo is the work-side technical workflow for Liberty University projects.
 
-Use tank for:
+Use `grill-me` for:
 - Building or updating Oracle 19c ETL and analytics workflows
 - Writing or revising Python automation, API integration, and scheduler helpers
-- Writing ad-hoc Oracle 19c queries for investigation and validation
+- Creating one-off SQL, Python, and prompt artifacts under `gist/`
 - Updating project PRDs before implementation when that workflow is needed
 - Updating project README documentation when asked
 - Generating ServiceNow-ready work notes when that workflow is needed
 
-Worknotes use the same concise template across the `data-engineering`, `python-scripting`, and `ad-hoc-sql` skills.
+Worknotes use the same concise template across the project-oriented skills when they are needed.
 
 ---
 
@@ -37,6 +47,10 @@ Each Liberty project uses its own local working folders when applicable:
 Rules:
 
 - Do the work in `sandbox/` when the project uses that model.
+- Start dev work in `sandbox/`.
+- Keep `prd/` and `worknotes/` inside the active project folder, not at the repo root.
+- Create `prd/` after the planning session when the work needs one.
+- Save `worknotes/` during the OCD closeout step.
 - Review the exact object, procedure, script, or diff before promotion when the change is part of a larger file.
 - Commit to BitBucket before clearing `sandbox/`.
 - Keep Git history as the archive for deployed work.
@@ -52,7 +66,7 @@ Rules:
 
 **Local traceability.** Keep plans and work notes inside the project that owns the change.
 
-**Work-safe separation.** tank is for Liberty University work only.
+**Work-safe separation.** This repo is for Liberty University work only.
 
 ---
 
@@ -66,9 +80,13 @@ A workflow for Oracle 19c analysis, diagnostics, rewrites, and comparison script
 
 A workflow for Python automation, API integrations, batch-file wrappers, and Windows task-scheduler helpers.
 
-### ad-hoc-sql
+### gist-builder
 
-A workflow for read-only Oracle 19c ad-hoc query and investigation work.
+A workflow for one-off version-controlled SQL, Python, and prompt artifacts under `gist/`.
+
+### Hidden system skills
+
+`skills/.system/` holds internal helper skills that support Codex capabilities. They are part of the repo structure but are not the primary work entrypoints for TANK usage.
 
 ---
 
@@ -76,24 +94,29 @@ A workflow for read-only Oracle 19c ad-hoc query and investigation work.
 
 ```text
 tank/
-├── .agents/
-│   └── skills/
-│       ├── tank/
-│       │   └── SKILL.md
-│       ├── data-engineering/
-│       │   └── SKILL.md
-│       ├── python-scripting/
-│       │   └── SKILL.md
-│       └── ad-hoc-sql/
-│           └── SKILL.md
+├── gist/
+│   ├── sql/
+│   ├── python/
+│   └── prompt/
+├── skills/
+│   ├── .system/
+│   │   └── <internal helper skills>/
+│   ├── grill-me/
+│   │   └── SKILL.md
+│   ├── data-engineering/
+│   │   └── SKILL.md
+│   ├── python-scripting/
+│   │   └── SKILL.md
+│   └── gist-builder/
+│       └── SKILL.md
+├── templates/
 ├── AGENTS.md
 ├── .gitignore
 ├── README.md
-├── prd/
-└── worknotes/
+└── setup.md
 ```
 
-This folder is tank's local control plane. Project-specific prd, work notes, and active development live in the target Liberty project's local `sandbox/`, `prd/`, and `worknotes/` folders when that layout exists.
+This folder is the local control plane plus the shared work asset root. Project-specific `sandbox/`, `prd/`, and `worknotes/` live in each target Liberty project folder when that layout exists.
 
 ---
 
