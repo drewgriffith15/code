@@ -1,6 +1,8 @@
-# TANK — Tactical Analytics Network Knowledgebase
+**OUTPUT CONSTRAINT: Never use em dashes (—) in any output. Use hyphens (-), semicolons (;), or restructure sentences instead.**
 
-tank is the Liberty University work repo for Codex. The launcher skill is `grill-me`, inspired by Tank from *The Matrix*, the operator behind the screens who loads programs, reads raw code, and keeps the team moving.
+# TANK - Tactical Analytics Network Knowledgebase
+
+TANK is the Liberty University work repo for Codex. The launcher skill is `grill-me`, inspired by Tank from *The Matrix*, the operator behind the screens who loads programs, reads raw code, and keeps the team moving.
 
 It handles Oracle 19c data engineering, Python scripting, and version-controlled one-off SQL, Python, and prompt artifacts for work tasks in BitBucket projects.
 

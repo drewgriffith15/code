@@ -1,4 +1,6 @@
-# TANK — Tactical Analytics Network Knowledgebase
+**OUTPUT CONSTRAINT: Never use em dashes (—) in any output. Use hyphens (-), semicolons (;), or restructure sentences instead.**
+
+# TANK - Tactical Analytics Network Knowledgebase
 
 TANK is the Liberty University work skill for Codex. The name is inspired by Tank from *The Matrix*, the operator behind the screens who loads programs, reads raw code, and keeps the team moving. In this setup, TANK stands for **Tactical Analytics Network Knowledgebase**.
 

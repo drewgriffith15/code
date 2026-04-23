@@ -13,7 +13,7 @@ This skill provides guidance for creating effective skills.
 
 Skills are modular, self-contained folders that extend Codex's capabilities by providing
 specialized knowledge, workflows, and tools. Think of them as "onboarding guides" for specific
-domains or tasks—they transform Codex from a general-purpose agent into a specialized agent
+domains or tasks. They transform Codex from a general-purpose agent into a specialized agent
 equipped with procedural knowledge that no model can fully possess.
 
 ### What Skills Provide
@@ -49,7 +49,7 @@ Think of Codex as exploring a path: a narrow bridge with cliffs needs specific g
 
 You may use subagents during iteration to validate whether a skill works on realistic tasks or whether a suspected problem is real. This is most useful when you want an independent pass on the skill's behavior, outputs, or failure modes after a revision.  Only do this when it is possible to start new subagents.
 
-When using subagents for validation, treat that as an evaluation surface. The goal is to learn whether the skill generalizes, not whether another agent can reconstruct the answer from leaked context.
+When using subagents for validation, treat that as an evaluation surface. The goal is to learn whether the skill generalizes, not whether another agent can reconstruct the answer from what it sees in context.
 
 Prefer raw artifacts such as example prompts, outputs, diffs, logs, or traces. Give the minimum task-local context needed to perform the validation. Avoid passing the intended answer, suspected bug, intended fix, or your prior conclusions unless the validation explicitly requires them.
 
@@ -76,8 +76,8 @@ skill-name/
 
 Every SKILL.md consists of:
 
-- **Frontmatter** (YAML): Contains `name` and `description` fields. These are the only fields that Codex reads to determine when the skill gets used, thus it is very important to be clear and comprehensive in describing what the skill is, and when it should be used.
-- **Body** (Markdown): Instructions and guidance for using the skill. Only loaded AFTER the skill triggers (if at all).
+- **Frontmatter** (YAML): Contains `name` and `description` fields. These are the only fields Codex reads to determine when the skill gets used, so it is very important to be clear and comprehensive in describing what the skill is and when it should be used.
+- **Body** (Markdown): Instructions and guidance for using the skill. Loaded only after the skill triggers (if at all).
 
 #### Agents metadata (recommended)
 
@@ -95,7 +95,7 @@ Every SKILL.md consists of:
 
 Executable code (Python/Bash/etc.) for tasks that require deterministic reliability or are repeatedly rewritten.
 
-- **When to include**: When the same code is being rewritten repeatedly or deterministic reliability is needed
+- **When to include**: When the same code is rewritten repeatedly or deterministic reliability is needed
 - **Example**: `scripts/rotate_pdf.py` for PDF rotation tasks
 - **Benefits**: Token efficient, deterministic, may be executed without loading into context
 - **Note**: Scripts may still need to be read by Codex for patching or environment-specific adjustments
