@@ -150,15 +150,23 @@ Then say:
 >
 > Reply `go` or `autopilot` to proceed with Autopilot. Reply `step` to use Step-by-step.
 
-**Phase exit:** Drew replies. Lock in the build mode, then proceed to Phase 4.
+**CRITICAL STOPPING POINT — Before Phase 4:**
+
+After Drew selects build mode, say:
+
+> Phase 4 requires Claude Sonnet 4.6 for implementation. Switch your model now? Reply `sonnet` to switch, or `continue` to proceed with current model.
+
+Wait for Drew's explicit reply. Do NOT proceed to Phase 4 until Drew confirms the model choice.
+
+**Phase exit:** Drew replies with build mode + model preference. Lock both in, then proceed to Phase 4.
 
 ---
 
 ## Phase 4 — STEP-WISE BUILD & VALIDATE
 
-**Entry condition:** Drew approves Phase 3 and selects build mode.
+**Entry condition:** Drew approves Phase 3 (issues + build mode + model choice).
 
-**Model:** This phase requires Claude Sonnet 4.6 for implementation. Request the model switch before proceeding.
+**Model:** This phase runs with the model Drew selected at Phase 3 exit. If Sonnet was chosen, run with Sonnet 4.6. Otherwise, continue with current model. (Note: Haiku is NOT recommended for Phase 4 coding work.)
 
 **First action:** `python 'C:/Users/wgriffith2/Code/TANK/scripts/session_timer.py' --log-phase 4`
 
@@ -245,7 +253,7 @@ Read the relevant memory file under `C:\Users\wgriffith2\.claude\projects\C--Use
 Is this a new project? If yes, verify `.claude/skills/` directory exists (create it if not). If no, skip and say so.
 
 **3.7 setup.md**
-Check for a `setup.md` in the **target project root** (e.g., `REMY/setup.md`, `KILO/setup.md`). If it doesn't exist, create one with patterns and shared knowledge from that project. If it exists, skim it and confirm it still reflects the current workflow.
+Check for a `setup.md` in the **target project root** (e.g., `TANK/setup.md`). If it doesn't exist, create one with patterns and shared knowledge from that project. If it exists, skim it and confirm it still reflects the current workflow.
 
 ### Axis 4 — Git Summary & Session Timing
 
