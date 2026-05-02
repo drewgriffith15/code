@@ -152,7 +152,7 @@ Then say:
 
 **CRITICAL STOPPING POINT — Before Phase 4:**
 
-After Drew selects build mode, say:
+After Drew selects build mode, prompt the user NOW:
 
 > Phase 4 requires Claude Sonnet 4.6 for implementation. Switch your model now? Reply `sonnet` to switch, or `continue` to proceed with current model.
 
@@ -204,7 +204,7 @@ Build all issues sequentially without stopping for permission between them.
 
 **Entry condition:** All issues validated (Drew approves if Step-by-step mode).
 
-**Model:** Back to Claude Haiku 4.5.
+**Model:** Prompt the user again to switch back to Claude Haiku 4.5.
 
 **First action:** `python 'C:/Users/wgriffith2/Code/TANK/scripts/session_timer.py' --log-phase 5`
 
@@ -278,7 +278,7 @@ Minimum logged time is 30 minutes (a 5-minute session rounds up to 30).
 **Git diff:**
 - Run `git diff --stat` on the project directory to see which files changed.
 - Run `git diff` on each modified file to read the actual changes.
-- Produce a commit-ready summary in this exact format — nothing before it, nothing after it, so Drew can copy-paste it directly into a GitHub commit:
+- **Produce a commit-ready summary** in this exact format — nothing before it, nothing after it, so Drew can copy-paste it directly into a GitHub commit. **Include timing from the session report** in the markdown block:
 
 ```
 <one-line title: imperative verb, max 72 chars>
@@ -286,7 +286,11 @@ Minimum logged time is 30 minutes (a 5-minute session rounds up to 30).
 - <what changed and why — 3 to 5 bullets>
 - <be specific: function names, field names, behavior changes>
 - <include the "why" not just the "what">
+
+Build time: Xh YYm (HH:MM - HH:MM)
 ```
+
+(Extract timing from the `--report` output and format as `Build time: 30m (07:29 - 08:05)` — include both actual start/end times and rounded duration.)
 
 After completing all four axes, report what was changed and say:
 
