@@ -82,8 +82,14 @@ Generate a structured Markdown PRD. Save it as a `.md` file using the Write tool
 
 **PRD structure:** (saved as `[Project]/PRDs/PRD_[name]_[timestamp].md`)
 
+Convert the filename timestamp (YYYYMMDD_HHMMSS) to `YYYY-MM-DD HH:MM:SS` format for the `Created` field.
+
 ```markdown
 # PRD: [Project Name]
+
+**Status:** Outstanding
+**Created:** YYYY-MM-DD HH:MM:SS
+**Completed:**
 
 ## Summary
 One paragraph. What is this, why does it exist, what problem does it solve.
@@ -235,7 +241,7 @@ Work through each item below in order. After completing each one, report its sta
 ---
 
 **3.1 PRD**
-Read the PRD file at `[Project]/PRDs/PRD_*_[timestamp].md`. Compare it against what was actually built. If the implementation deviated from the PRD in any way, correct the PRD now. Once confirmed, rename the file to append `_DONE_[current-timestamp]` (format: `PRD_[name]_[original-timestamp]_DONE_[current-timestamp].md`) to mark build completion. Report what changed, what was confirmed, and what the renamed file is called.
+Read the PRD file at `[Project]/PRDs/PRD_*_[timestamp].md`. Compare it against what was actually built. If the implementation deviated from the PRD in any way, correct it now. Then update the metadata block: set `Status: Completed` and fill `Completed: YYYY-MM-DD HH:MM:SS` with the current timestamp. Move the file to `PRDs/completed/[filename]` — keep the original filename unchanged.
 
 **3.2 CLAUDE.md**
 Read the project's `CLAUDE.md`. Were any new conventions, file structure changes, or constraints introduced in this build? If yes, update it. Report what changed or confirm it's current.
@@ -269,11 +275,11 @@ python 'C:/Users/wgriffith2/Code/TANK/scripts/session_timer.py' --report
 The report prints all phase timestamps, flags idle gaps > 3 hours, and outputs:
 
 ```
-Total session:  Xh YYm -> Xh YYm   (raw -> rounded up to next 30 min)
+Total session:  Xh YYm -> Xh YYm   (raw -> rounded up to next 15 min)
 Active session: Xh YYm -> Xh YYm   (idle gaps excluded, rounded up)
 ```
 
-Minimum logged time is 30 minutes (a 5-minute session rounds up to 30).
+Minimum logged time is 15 minutes (a 5-minute session rounds up to 15).
 
 **Git diff:**
 - Run `git diff --stat` on the project directory to see which files changed.
@@ -290,7 +296,7 @@ Minimum logged time is 30 minutes (a 5-minute session rounds up to 30).
 Build time: Xh YYm (HH:MM - HH:MM)
 ```
 
-(Extract timing from the `--report` output and format as `Build time: 30m (07:29 - 08:05)` — include both actual start/end times and rounded duration.)
+(Extract timing from the `--report` output and format as `Build time: 15m (07:29 - 08:05)` — include both actual start/end times and rounded duration.)
 
 After completing all four axes, report what was changed and say:
 
@@ -298,17 +304,12 @@ After completing all four axes, report what was changed and say:
 
 ### Axis 5 — Commit & Push
 
-Ask Drew one question:
+Auto-commit and auto-push (Drew's preference; no permission prompt).
 
-> Ready to commit and push to GitHub? Reply `yes` to commit and push, or `no` to skip.
-
-If Drew replies `yes`:
 1. Run `git add` on only the files modified or created in this build (do NOT use `git add -A` or `git add .`)
 2. Commit using the summary produced in Axis 4 as the commit message, appending `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
 3. Run `git push`
 4. Report the result
-
-If Drew replies `no`, acknowledge and end the session.
 
 ---
 
