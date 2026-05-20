@@ -11,18 +11,15 @@ import argparse
 import os
 import sys
 import re
-import datetime
 import json
 from pathlib import Path
 
 import anthropic
-from notion_client import Client
 from dotenv import load_dotenv
 
 load_dotenv(r"C:\Users\wgriffith2\.claude\.env.personal", override=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 
 CONSTRUCT_ROOT = Path("C:/Users/wgriffith2/Dropbox (Liberty University)/Construct")
 LESSONS_DIR = CONSTRUCT_ROOT / "wiki" / "theology" / "lessons"
@@ -30,12 +27,7 @@ DRAFTS_DIR = LESSONS_DIR
 TEMP_DIR = LESSONS_DIR / "_temp"
 VOICE_PATTERNS_PATH = Path(__file__).parent / "voice_patterns.json"
 
-THEO_FULL_PAGE_ID = os.getenv("THEO_FULL_PAGE_ID", "35bee045d5ec80da97b8d003434ffb43")
-
 SONNET = "claude-sonnet-4-6"
-HAIKU = "claude-haiku-4-5-20251001"
-
-notion = Client(auth=NOTION_TOKEN)
 
 
 def ensure_dirs():
@@ -170,18 +162,6 @@ WHAT YOU DO NOT DO:
 OUTPUT: Return the full polished lesson. Same structure, same sections, lighter touch.
 """
 
-SLUG_PROMPT = """TASK: Convert the scripture reference "{reference}" into a short filename slug.
-
-RULES:
-1. Format: [3-4 LETTER UPPERCASE BOOK]-[CHAPTER]
-2. Remove spaces, add hyphen.
-3. Examples:
-   - "1 Kings 18" -> "1KNG-18"
-   - "Matthew 2" -> "MAT-2"
-   - "Ephesians 1" -> "EPH-1"
-4. Output ONLY the slug text. No other words.
-"""
-
 
 # ============================================================
 # CLAUDE API CALLS
@@ -260,24 +240,6 @@ def generate_ghost_writer(draft: str) -> str:
     return response.content[0].text
 
 
-def extract_primary_scripture(outline: str) -> str:
-    match = re.search(r"\*\*Core Scripture Passage\(s\):\*\*\s*(.+)", outline)
-    if match:
-        raw = match.group(1).strip()
-        return raw.split(";")[0].strip()
-    return ""
-
-
-def scripture_to_slug(reference: str) -> str:
-    client = get_client()
-    response = client.messages.create(
-        model=HAIKU,
-        max_tokens=20,
-        messages=[{"role": "user", "content": SLUG_PROMPT.format(reference=reference)}],
-    )
-    return response.content[0].text.strip()
-
-
 # ============================================================
 # VOICE PATTERNS
 # ============================================================
@@ -346,105 +308,6 @@ Preserve high-value assets: {p["preserve_high_value_assets"]}"""
 
 
 # ============================================================
-# NOTION
-# ============================================================
-
-def _rich_text(text: str, bold: bool = False, italic: bool = False) -> dict:
-    text = text.replace("—", "-")
-    return {
-        "type": "text",
-        "text": {"content": text},
-        "annotations": {"bold": bold, "italic": italic},
-    }
-
-
-def _parse_inline(text: str) -> list:
-    segments = []
-    pattern = re.compile(r"(\*\*(.+?)\*\*|\*(.+?)\*|([^*]+))")
-    for m in pattern.finditer(text):
-        if m.group(2):
-            segments.append(_rich_text(m.group(2), bold=True))
-        elif m.group(3):
-            segments.append(_rich_text(m.group(3), italic=True))
-        elif m.group(4):
-            segments.append(_rich_text(m.group(4)))
-    return segments if segments else [_rich_text(text)]
-
-
-def markdown_to_notion_blocks(md: str) -> list:
-    blocks = []
-    lines = md.splitlines()
-    skip_h1 = True
-
-    for line in lines:
-        raw = line.rstrip()
-        if not raw:
-            continue
-        if raw.startswith("# ") and skip_h1:
-            skip_h1 = False
-            continue
-        if raw.startswith("### "):
-            blocks.append({"type": "heading_3", "heading_3": {"rich_text": _parse_inline(raw[4:])}})
-        elif raw.startswith("## "):
-            blocks.append({"type": "heading_2", "heading_2": {"rich_text": _parse_inline(raw[3:])}})
-        elif raw.startswith("# "):
-            blocks.append({"type": "heading_1", "heading_1": {"rich_text": _parse_inline(raw[2:])}})
-        elif re.match(r"^\s*[-*]\s+", raw):
-            content = re.sub(r"^\s*[-*]\s+", "", raw)
-            blocks.append({"type": "bulleted_list_item", "bulleted_list_item": {"rich_text": _parse_inline(content)}})
-        elif raw.strip():
-            blocks.append({"type": "paragraph", "paragraph": {"rich_text": _parse_inline(raw)}})
-
-    return blocks
-
-
-def _append_blocks(page_id: str, blocks: list):
-    notion.blocks.children.append(page_id, children=blocks)
-
-
-def _create_full_page_notion(content: str, title: str, parent_page_id: str) -> tuple:
-    blocks = markdown_to_notion_blocks(content)
-    page = notion.pages.create(
-        parent={"page_id": parent_page_id},
-        properties={"title": [{"type": "text", "text": {"content": title}}]},
-        children=blocks[:100] if blocks else []
-    )
-    page_id = page["id"]
-    notion_url = page.get("url", f"https://notion.so/{page_id.replace('-', '')}")
-    for i in range(100, len(blocks), 100):
-        _append_blocks(page_id, blocks[i:i + 100])
-    return page_id, notion_url
-
-
-def _link_full_page_to_outline(outline_notion_page_id: str, full_page_url: str, title: str):
-    block = {
-        "type": "paragraph",
-        "paragraph": {
-            "rich_text": [
-                _rich_text("FULL Page: "),
-                {"type": "text", "text": {"content": title, "link": {"url": full_page_url}}},
-            ]
-        },
-    }
-    _append_blocks(outline_notion_page_id, [block])
-
-
-# ============================================================
-# SIDECAR
-# ============================================================
-
-def _load_sidecar(outline_path: Path) -> str | None:
-    sidecar = outline_path.with_suffix(".json")
-    if sidecar.exists():
-        try:
-            data = json.loads(sidecar.read_text(encoding="utf-8"))
-            return data.get("outline_notion_page_id")
-        except Exception:
-            pass
-    return None
-
-
-# ============================================================
 # PIPELINE
 # ============================================================
 
@@ -473,7 +336,6 @@ def run_draft(outline_path: str, ghost_writer: bool = True):
         sys.exit(1)
 
     outline = op.read_text(encoding="utf-8")
-    outline_notion_page_id = _load_sidecar(op)
 
     voice_patterns = load_voice_patterns()
     voice_guide = _build_voice_guide(voice_patterns) if voice_patterns else ""
@@ -523,17 +385,6 @@ def run_draft(outline_path: str, ghost_writer: bool = True):
     draft_path = DRAFTS_DIR / draft_filename
     draft_path.write_text(draft, encoding="utf-8")
     print(f"Draft saved: {draft_path}")
-
-    if outline_notion_page_id:
-        lesson_title = op.stem
-        print("Pushing FULL page to Notion...")
-        try:
-            page_id, notion_url = _create_full_page_notion(draft, lesson_title, THEO_FULL_PAGE_ID)
-            print(f"FULL page created: {notion_url}")
-            _link_full_page_to_outline(outline_notion_page_id, notion_url, lesson_title)
-            print("Linked FULL page to outline page.")
-        except Exception as e:
-            print(f"Notion FULL page push failed: {e}")
 
     return draft_path
 

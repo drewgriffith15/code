@@ -19,4 +19,4 @@ The lesson as actually taught. Lives in `Construct/wiki/theology/lessons/`. Reta
 
 ## Data Flow (one-way: local → Notion, never back)
 
-Source Material (local) → Source Outline (local + Notion push) → Adapted Outline (local only) → Draft(s) (local only) → Final Draft (local + Notion push)
+Source Material (local) → Source Outline (local + Notion push via /theo-outline) → Adapted Outline (local only) → Draft (local only) → Final Draft/Lesson (local + Notion push via /theo-push)
