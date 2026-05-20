@@ -34,3 +34,4 @@ originSessionId: 206ecdca-65d8-4c7e-b47d-ea6c7cb6a781
 - `/theo-ghostwriter` - existing outline -> full draft pipeline; pushes FULL page to Notion
 - `/theo-redteam` - draft refinement; cuts to length + coaching analysis
 - `/theo-editor` - voice-edit pass; checkpoint approved sections; pushes final to Notion
+- `/theo-vtt` - voice-to-text refinement; Drew pastes raw phone dictation + identifies section header; skill reads full file for context, applies Scribe Editor rules, replaces target section only; no output confirmation (file opens in editor)
