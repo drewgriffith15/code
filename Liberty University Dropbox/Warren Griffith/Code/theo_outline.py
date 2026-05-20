@@ -21,7 +21,7 @@ import anthropic
 from notion_client import Client
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent.parent / '.env', override=True)
+load_dotenv(r"C:\Users\wgriffith2\.claude\.env.personal", override=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
@@ -95,14 +95,14 @@ Use exactly this template:
 **URL:** [Extract URL from input. If missing or blank, write "n/a"]
 **Resource Type:** Sermon
 **Study Series:** [Series Name or "n/a"]
-**Speaker/Author:** [Speaker Name from the input header or pulled from transcript]
+**Speaker/Author:** [Speaker Name from the input header or pulled from transcript or "n/a"]
 
 **Core Scripture Passage(s):** [CRITICAL: List the PRIMARY Reading Text FIRST. Follow with supplementary verses separated by semicolons. Use Christian Standard Bible (CSB) version.]
 **Lesson Thesis/Main Idea:** [1-2 sentence summary of the sermon's core argument]
 
 **  Introduction & Prayer: [Clear Topic Sentence - 3 words or less]**
-    A. **Contextual Overview:** [Extract specific historical/cultural context here. If the speaker mentions specific geography, customs, or laws, it MUST go here. Do not write a generic summary.]
-    B. **Opening Prayer Guide:** [DO NOT write a verbatim prayer. Instead, provide 1-2 sentences instructing the leader on specific spiritual outcomes to seek. Start sentences with "Pray for..." or "Ask God to..."]
+    A. **Opening Prayer Guide:** [DO NOT write a verbatim prayer. Instead, provide 1-2 sentences instructing the leader on specific spiritual outcomes to seek. Start sentences with "Pray for..." or "Ask God to..."]
+    B. **Contextual Overview:** [Extract specific historical/cultural context here. If the speaker mentions specific geography, customs, or laws, it MUST go here. Do not write a generic summary.]  
 
 **  Main Point 1: [Clear Topic Sentence - 3 words or less]**
     A. **Scriptural Basis:** [Key verse(s) + concise explanation of the speaker's interpretation]
@@ -150,7 +150,7 @@ Use exactly this template:
     G. **Transition to Conclusion:** [Logical bridge]
 
 **  Conclusion: [Clear Conclusion Sentence - 3 words or less]**
-    A. **Conclusion:** [Brief statement that leads to the closing prayer]
+    A. **Conclusion:** [Super brief statement that leads to the closing prayer that does not rehash anything we talked about already]
     B. **Closing Prayer Guide:** [DO NOT write a verbatim prayer. Instead, provide 1-2 sentences that guides the leader on application and repentance. Start sentences with "Pray for..." or "Ask God for..."]
 """
 
@@ -226,6 +226,13 @@ def extract_primary_scripture(outline: str) -> str:
     return ""
 
 
+def extract_full_scripture(outline: str) -> str:
+    match = re.search(r"\*\*Core Scripture Passage\(s\):\*\*\s*(.+)", outline)
+    if match:
+        return match.group(1).strip()
+    return ""
+
+
 def extract_lesson_thesis(outline: str) -> str:
     match = re.search(r"\*\*Lesson Thesis/Main Idea:\*\*\s*(.+?)(?=\n\n|\*\*|$)", outline, re.DOTALL)
     if match:
@@ -259,17 +266,44 @@ def _build_frontmatter(date_str: str, slug: str, transcript_path: str, series: s
     book = slug.split("-")[0].lower()
     tags = ["outline", book]
     if series:
-        tags.append(series.lower().replace(" ", "-"))
+        tags.append(re.sub(r"[^a-z0-9]+", "-", series.lower()).strip("-"))
     tags_str = json.dumps(tags)
     return f"---\ndomain: theology\ntype: outline\ndate: {dt}\nupdated: {dt}\ntags: {tags_str}\nsources: [\"{transcript_path}\"]\n---\n\n"
 
 
 def _strip_frontmatter(md: str) -> str:
-    if md.startswith("---"):
-        end = md.find("---", 3)
-        if end != -1:
-            return md[end + 3:].lstrip("\n")
+    if not md.startswith("---"):
+        return md
+    # Find closing --- on its own line (not inside YAML string values)
+    m = re.search(r"(?m)^---\s*$", md[3:])
+    if m:
+        return md[3 + m.end():].lstrip("\n")
     return md
+
+
+def _strip_for_notion(md: str) -> str:
+    """Strip YAML frontmatter, metadata header block, and markdown syntax for Notion plain text."""
+    text = _strip_frontmatter(md)
+
+    # Skip metadata header lines (Title, URL, Resource Type, Study Series, Speaker/Author + blanks/hr)
+    metadata_keys = ("**Title:**", "**URL:**", "**Resource Type:**", "**Study Series:**", "**Speaker/Author:**")
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if not stripped or stripped == "---" or any(stripped.startswith(k) for k in metadata_keys):
+            i += 1
+        else:
+            break
+    text = "\n".join(lines[i:])
+
+    # Strip markdown syntax
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)               # bold
+    text = re.sub(r"\*(.+?)\*", r"\1", text)                   # italic
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE) # headings
+    text = re.sub(r"^---+\s*$", "", text, flags=re.MULTILINE)  # horizontal rules
+
+    return text.strip()
 
 
 # ============================================================
@@ -341,6 +375,15 @@ def _append_blocks(page_id: str, blocks: list):
     notion.blocks.children.append(page_id, children=blocks)
 
 
+def _chunk_rich_text(text: str, chunk_size: int = 1990) -> list:
+    """Split large text into Notion rich_text array (2000 char limit per object)."""
+    chunks = []
+    while text:
+        chunks.append({"type": "text", "text": {"content": text[:chunk_size]}})
+        text = text[chunk_size:]
+    return chunks
+
+
 def _extract_url_from_outline(outline: str) -> str | None:
     match = re.search(r"\*\*URL:\*\*\s*(.+)", outline)
     if match:
@@ -349,43 +392,33 @@ def _extract_url_from_outline(outline: str) -> str | None:
     return None
 
 
-def push_outline_to_notion(outline_path: Path, title: str, scripture: str, date_str: str = None, speaker: str = "", series: str = "", thesis: str = "") -> str:
+def push_outline_to_notion(outline_path: Path, title: str, scripture: str, full_scripture: str = "", date_str: str = None, speaker: str = "", series: str = "", thesis: str = "") -> str:
     md = outline_path.read_text(encoding="utf-8")
-    blocks = markdown_to_notion_blocks(md)
+    outline_raw = _strip_frontmatter(md)   # for URL extraction (still has **URL:** line)
+    outline_clean = _strip_for_notion(md)  # plain text for Notion property display
     page_date = date_str or datetime.date.today().isoformat()
 
-    summary = f"Core Scripture Passage(s): {scripture}"
-    if thesis:
-        summary += f"\nLesson Thesis/Main Idea: {thesis}"
-
     properties = {
-        "Lesson": {"title": [{"text": {"content": title}}]},
-        "Date": {"date": {"start": page_date}},
-        "Resource Type": {"select": {"name": "Sermon"}},
+        "Lesson Name": {"title": [{"text": {"content": title}}]},
+        "Lesson Date": {"date": {"start": page_date}},
+        "Lesson Type": {"select": {"name": "Sermon"}},
+        "Outline": {"rich_text": _chunk_rich_text(outline_clean)},
     }
-    if scripture:
-        properties["Summary"] = {"rich_text": [{"text": {"content": summary}}]}
     if speaker:
-        properties["Speaker/Author "] = {"select": {"name": speaker}}
+        properties["Source Name"] = {"select": {"name": speaker}}
     if series:
-        properties["Study Series"] = {"select": {"name": series}}
+        properties["Series Name"] = {"select": {"name": series}}
 
-    outline_content = _strip_frontmatter(md)
-    url = _extract_url_from_outline(outline_content)
+    url = _extract_url_from_outline(outline_raw)
     if url:
         properties["Link"] = {"url": url}
 
     page = notion.pages.create(
         parent={"database_id": THEO_NOTION_DB},
         properties=properties,
-        children=blocks[:100] if blocks else []
     )
-    page_id = page["id"]
 
-    for i in range(100, len(blocks), 100):
-        _append_blocks(page_id, blocks[i:i + 100])
-
-    return page_id
+    return page["id"]
 
 
 # ============================================================
@@ -621,6 +654,7 @@ def run_plan(transcript_path: str, date_str: str = None):
     print("Extracting title and scripture...")
     title = extract_title(outline)
     scripture = extract_primary_scripture(outline)
+    full_scripture = extract_full_scripture(outline)
     slug = scripture_to_slug(scripture) if scripture else "unknown"
 
     lesson_date = date_str or datetime.date.today().isoformat()
@@ -637,7 +671,7 @@ def run_plan(transcript_path: str, date_str: str = None):
     outline_notion_page_id = None
     print("Pushing outline to Notion...")
     try:
-        outline_notion_page_id = push_outline_to_notion(outline_path, title, scripture, date_str, speaker, series, thesis)
+        outline_notion_page_id = push_outline_to_notion(outline_path, title, scripture, full_scripture, date_str, speaker, series, thesis)
         print(f"Notion outline page created: {outline_notion_page_id}")
     except Exception as e:
         print(f"Notion push failed: {e}")
@@ -663,16 +697,16 @@ def run_repush_outline(outline_path: str):
         print("ERROR: outline_notion_page_id not found in sidecar JSON.")
         return
 
-    print(f"Clearing existing blocks from Notion page {page_id}...")
-    existing = notion.blocks.children.list(page_id)
-    for block in existing.get("results", []):
-        notion.blocks.delete(block["id"])
-
-    print("Re-pushing updated outline body...")
     md = md_path.read_text(encoding="utf-8")
-    blocks = markdown_to_notion_blocks(md)
-    for i in range(0, len(blocks), 100):
-        _append_blocks(page_id, blocks[i:i + 100])
+    outline_clean = _strip_for_notion(md)
+
+    print(f"Updating Outline property on Notion page {page_id}...")
+    notion.pages.update(
+        page_id=page_id,
+        properties={
+            "Outline": {"rich_text": _chunk_rich_text(outline_clean)},
+        }
+    )
 
     print(f"Done. Notion outline page updated: {page_id}")
 

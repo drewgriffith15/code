@@ -1,6 +1,6 @@
 ---
 name: theo-outline
-description: THEO outline pipeline. Use when Drew wants to generate one or more lesson outlines from sermon transcript files. Accepts one or more file paths, auto-assigns sequential Sunday dates, runs theo_outline.py for each, saves outlines to Construct, pushes to Notion.
+description: THEO outline pipeline. Use when Drew wants to generate one or more lesson outlines from sermon transcript files. Accepts one or more file paths, asks for lesson dates, runs theo_outline.py for each, saves outlines to Construct, pushes to Notion.
 model: claude-sonnet-4-6
 ---
 
@@ -33,37 +33,16 @@ If the user provided file paths in the command args, use them. If not, ask:
 
 Wait for the paths before continuing.
 
-## Step 2 — Compute lesson dates
+## Step 2 — Collect lesson dates
 
-Run this Python to compute the sequential Sundays:
+Ask:
 
-```python
-from datetime import date, timedelta
-
-today = date.today()
-days_ahead = (6 - today.weekday()) % 7
-if days_ahead == 0:
-    days_ahead = 7
-next_sunday = today + timedelta(days=days_ahead)
-
-# Print one date per file — caller fills in N
-files = [
-    # populated from user input
-]
-for i, f in enumerate(files):
-    lesson_date = (next_sunday + timedelta(weeks=i)).isoformat()
-    print(f"{lesson_date}  {f}")
-```
-
-Show the user the file-to-date mapping and confirm before running:
-
-> Ready to run outlines for N file(s):
-> - YYYY-MM-DD: filename1.md
-> - YYYY-MM-DD: filename2.md
+> What is the lesson date for each file? (YYYY-MM-DD)
+> - filename1
+> - filename2
 > ...
-> Proceed?
 
-Wait for confirmation.
+Wait for the dates before continuing.
 
 ## Step 3 — Prep then outline each file
 

@@ -41,7 +41,7 @@
     <tr><td><span class="key">Ctrl+Alt+G</span></td><td class="desc">Git commit to Bitbucket (bash)</td><td class="note">Prompts: Update or Initial commit</td></tr>
     <tr><td><span class="key">Ctrl+Alt+N</span></td><td class="desc">ServiceNow ticket template</td><td class="note">Pastes pre-filled description block</td></tr>
     <tr><td><span class="key">Ctrl+Alt+Y</span></td><td class="desc">CONSTRUCT Ingest - YouTube transcript fetch</td><td class="note">Runs ingest_youtube.py --playlist</td></tr>
-    <tr><td><span class="key">Ctrl+Alt+R</span></td><td class="desc">CONSTRUCT Ingest - Raw transcript/wiki push</td><td class="note">Runs ingest_raw.py --run</td></tr>
+    <tr><td><span class="key">Ctrl+Alt+I</span></td><td class="desc">CONSTRUCT Ingest - Raw transcript/wiki push</td><td class="note">Runs ingest_raw.py --run</td></tr>
   </tbody>
 </table>
 
@@ -136,7 +136,7 @@
   <tbody>
     <tr><td><span class="key">/diagnose</span></td><td class="desc">Structured debug loop: reproduce → minimise → hypothesise → instrument → fix</td></tr>
     <tr><td><span class="key">/grill-with-docs</span></td><td class="desc">Stress-test a plan against CONTEXT.md and ADRs; updates docs inline</td></tr>
-    <tr><td><span class="key">/improve-codebase-architecture</span></td><td class="desc">Find refactoring and deepening opportunities in a codebase</td></tr>
+    <tr><td><span class="key">/ocd-check</span></td><td class="desc">Architecture + cleanup review scoped to recently changed files; blends seam/depth analysis with doc-sync and commit summary</td></tr>
     <tr><td><span class="key">/to-issues</span></td><td class="desc">Break a plan or PRD into independently-grabbable GitHub issues</td></tr>
     <tr><td><span class="key">/to-prd</span></td><td class="desc">Turn the current conversation into a PRD and publish as a GitHub issue</td></tr>
     <tr><td><span class="key">/zoom-out</span></td><td class="desc">Step back for broader context or higher-level view of unfamiliar code</td></tr>
@@ -152,7 +152,6 @@
     <tr><td><span class="key">/grill-me</span></td><td class="desc">Relentless interview about a plan until every decision branch is resolved</td></tr>
     <tr><td><span class="key">/handoff</span></td><td class="desc">Compact the current conversation into a handoff doc for another agent</td></tr>
     <tr><td><span class="key">/write-a-skill</span></td><td class="desc">Scaffold a new skill using Drew's repo-based workflow</td></tr>
-    <tr><td><span class="key">/sync-commands</span></td><td class="desc">Audit installed skills vs commands.html - flags missing and stale entries</td></tr>
   </tbody>
 </table>
 
@@ -161,8 +160,9 @@
   <thead><tr><th>Skill</th><th>What It Does</th></tr></thead>
   <tbody>
     <tr><td><span class="key">/theo-outline</span></td><td class="desc">Generate lesson outlines from sermon transcript files; pushes to Notion</td></tr>
-    <tr><td><span class="key">/theo-ghostwriter</span></td><td class="desc">Ghost-write a full lesson draft from an existing outline file</td></tr>
-    <tr><td><span class="key">/theo-redteam</span></td><td class="desc">Refine a first draft - cuts to length, runs scribe coaching analysis</td></tr>
+<tr><td><span class="key">/theo-ghostwriter</span></td><td class="desc">Ghost-write a full lesson draft from an existing outline file</td></tr>
+    <tr><td><span class="key">/theo-push</span></td><td class="desc">Push a locally edited draft markdown file to Notion THEO hub</td></tr>
+<tr><td><span class="key">/theo-redteam</span></td><td class="desc">Refine a first draft - cuts to length, runs scribe coaching analysis</td></tr>
   </tbody>
 </table>
 
@@ -184,25 +184,12 @@
   </tbody>
 </table>
 
-<h3>File Tools</h3>
-<table>
-  <thead><tr><th>Skill</th><th>What It Does</th></tr></thead>
-  <tbody>
-    <tr><td><span class="key">/pptx</span></td><td class="desc">Create, read, edit, or combine PowerPoint (.pptx) files</td></tr>
-    <tr><td><span class="key">/pdf</span></td><td class="desc">Read, merge, split, OCR, or create PDF files</td></tr>
-    <tr><td><span class="key">/xlsx</span></td><td class="desc">Open, edit, clean, or create spreadsheet files (.xlsx, .csv)</td></tr>
-    <tr><td><span class="key">/docx</span></td><td class="desc">Create, read, or edit Word documents (.docx)</td></tr>
-  </tbody>
-</table>
-
 <h3>System / Config</h3>
 <table>
   <thead><tr><th>Skill</th><th>What It Does</th></tr></thead>
   <tbody>
     <tr><td><span class="key">/update-config</span></td><td class="desc">Configure Claude Code hooks, permissions, and settings.json</td></tr>
     <tr><td><span class="key">/schedule</span></td><td class="desc">Create/manage recurring or one-time scheduled Claude agents (cron)</td></tr>
-    <tr><td><span class="key">/skill-creator</span></td><td class="desc">Create, modify, or benchmark Claude skills</td></tr>
-    <tr><td><span class="key">/consolidate-memory</span></td><td class="desc">Merge duplicate memories, prune stale entries, fix the index</td></tr>
   </tbody>
 </table>
 

@@ -19,7 +19,7 @@ import anthropic
 from notion_client import Client
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent.parent / '.env', override=True)
+load_dotenv(r"C:\Users\wgriffith2\.claude\.env.personal", override=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")

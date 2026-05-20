@@ -24,10 +24,10 @@ load_dotenv(Path(__file__).parent.parent.parent / '.env', override=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
-TANK_DB_PATH = os.getenv("TANK_DB_PATH", "C:/Users/wgriffith2/Code/TANK/tank.ddb")
+CONSTRUCT_ROOT = Path(r"C:/Users/wgriffith2/Dropbox (Liberty University)/Construct")
+Construct_DB_PATH = os.getenv("Construct_DB_PATH", str(CONSTRUCT_ROOT))  # TODO: migrate to Construct wiki
 
-TANK_ROOT = Path(__file__).parent.parent
-TEMP_DIR = TANK_ROOT / "lessons" / "temp"
+TEMP_DIR = Path(__file__).parent / "temp"
 SCRIBE_REDTEAM_PATH = Path(r"C:\Users\wgriffith2\Dropbox (Liberty University)\Agents\scribe_redteam.md")
 
 SONNET = "claude-sonnet-4-6"
@@ -40,7 +40,7 @@ ai = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 
 def _tank_conn():
-    return duckdb.connect(TANK_DB_PATH)
+    return duckdb.connect(Construct_DB_PATH)
 
 
 def _extract_page_id(url: str) -> str:
@@ -62,7 +62,7 @@ def _lookup_lesson(notion_url: str) -> dict:
     ).fetchone()
     con.close()
     if not row:
-        raise ValueError(f"No lesson found in TANK for: {notion_url}")
+        raise ValueError(f"No lesson found in Construct for: {notion_url}")
     return {
         "id": row[0], "title": row[1], "draft": row[2],
         "final_edited": row[3], "notion_page_id": row[4], "notion_url": row[5],
@@ -205,7 +205,7 @@ LESSON:
     refined = response.content[0].text.strip()
 
     _tank_update(lesson["id"], final_edited=refined)
-    print(f"  Saved to TANK final_edited ({len(refined):,} chars / {_word_count(refined):,} words)")
+    print(f"  Saved to Construct final_edited ({len(refined):,} chars / {_word_count(refined):,} words)")
 
     print(f"  Overwriting Notion page...")
     _overwrite_notion_page(lesson["notion_page_id"], refined)
@@ -234,7 +234,7 @@ LESSON TO ANALYZE:
     feedback = response.content[0].text.strip()
 
     _tank_update(lesson["id"], redteam_feedback=feedback)
-    print("  Saved to TANK redteam_feedback.")
+    print("  Saved to Construct redteam_feedback.")
 
     print("\n" + "=" * 60)
     print("REDTEAM ANALYSIS")
@@ -253,7 +253,7 @@ def main():
 
     draft = lesson["final_edited"] or lesson["draft"]
     if not draft:
-        print("ERROR: No draft or final_edited found in TANK for this lesson.")
+        print("ERROR: No draft or final_edited found in Construct for this lesson.")
         sys.exit(1)
 
     source_label = "final_edited" if lesson["final_edited"] else "draft"
