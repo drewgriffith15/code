@@ -663,11 +663,24 @@ return
 }
 
 ;############################################################################################################
-; CONSTRUCT Ingest - Raw transcript classifier/wiki push (Ctrl+Alt+I)
+; CONSTRUCT Ingest - Raw transcript classifier/wiki push (Ctrl+Alt+R)
+;############################################################################################################
+^!r::
+{
+    Run, powershell.exe -NoExit -Command "cd 'C:\Users\wgriffith2\Dropbox (Liberty University)\Code'; python ingest_raw.py --run"
+    Return
+}
+
+;############################################################################################################
+; CONSTRUCT Query Wiki - paste /query-wiki into active Claude session (Ctrl+Alt+I)
 ;############################################################################################################
 ^!i::
 {
-    Run, powershell.exe -NoExit -Command "cd 'C:\Users\wgriffith2\Dropbox (Liberty University)\Code'; python ingest_raw.py --run"
+    InputBox, QUERY, Query Construct Wiki, What do you want to know?
+    if ErrorLevel
+        return
+    A_Clipboard := "/query-wiki " . QUERY
+    Send, ^v
     Return
 }
 
