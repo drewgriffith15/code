@@ -21,10 +21,11 @@ load_dotenv(r"C:\Users\wgriffith2\.claude\.env.personal", override=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
+CODE_ROOT = Path(__file__).parent
 CONSTRUCT_ROOT = Path("C:/Users/wgriffith2/Dropbox (Liberty University)/Construct")
 LESSONS_DIR = CONSTRUCT_ROOT / "wiki" / "theology" / "lessons"
 DRAFTS_DIR = LESSONS_DIR
-TEMP_DIR = LESSONS_DIR / "_temp"
+TEMP_DIR = CODE_ROOT / "temp"
 VOICE_PATTERNS_PATH = Path(__file__).parent / "voice_patterns.json"
 
 SONNET = "claude-sonnet-4-6"
