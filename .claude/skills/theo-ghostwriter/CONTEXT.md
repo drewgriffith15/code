@@ -17,6 +17,25 @@ AI-generated lesson prose built from the Adapted Outline by `theo-ghost-writer`.
 ### Final Draft / Lesson
 The lesson as actually taught. Lives in `Construct/wiki/theology/lessons/`. Retained permanently. This is the record of what Drew's audience heard.
 
+## Theological Heavyweights Priority Order
+
+The coaching rubric used during Redteam analysis. Ordered by priority:
+
+1. **Keller (Theological Depth)** — non-negotiable foundation; is scripture handled correctly? Is it Christ-centered?
+2. **Howerton (Clarity/Structure)** — aligns with Drew's natural voice; clean, pragmatic, direct; clarity enables conviction
+3. **Chandler (Conviction)** — adds heat to clear structure; Howerton + Holy Fire; bridges to repentance
+4. **Martin (Brutal Honesty)** — smash-mouth football coach; directness without apology; feedback lens woven throughout
+
+Rationale: Clarity enables conviction. An analytical audience (married adults) trusts crisp structure before emotional appeal. Howerton's pragmatism matches Drew's voice. Chandler bridges to conviction. Martin's brutal honesty tests the whole thing. Drew does not do humor; do not penalize for its absence.
+
+## Redteam Coaching Sections
+
+The three output sections produced by the Redteam pass (always in this order):
+
+1. **Theological Heavyweights** — weighted coaching analysis by each influence in priority order
+2. **Content Loops** — identifies concepts explained twice unnecessarily; verbal redundancy audit
+3. **Bible Nerds** — exactly 3 fact-based audience interaction points (one per main point); anchor quote + formatted insertion
+
 ## Data Flow (one-way: local → Notion, never back)
 
 Source Material (local) → Source Outline (local + Notion push via /theo-outline) → Adapted Outline (local only) → Draft (local only) → Final Draft/Lesson (local + Notion push via /theo-push)

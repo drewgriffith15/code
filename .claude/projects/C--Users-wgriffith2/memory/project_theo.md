@@ -14,7 +14,7 @@ originSessionId: 206ecdca-65d8-4c7e-b47d-ea6c7cb6a781
 - `theo.py` - main CLI; prep/plan/draft/full subcommands
 - `theo_outline.py` - outline generation
 - `theo_ghost_writer.py` - ghost-writer draft pass
-- `theo_redteam.py` - draft refinement; word count gate; cuts + scribe_redteam coaching analysis
+- `theo_redteam.py` - draft refinement; word count gate; cuts + Theological Heavyweights coaching (self-contained prompt, loads influence profiles from wiki)
 - `theo_editor.py` - voice-to-lesson finalization; `--load <notion_url>` / `--push <lesson_id>`
 - `theo_notion_push.py` - push draft to private Notion FULL page (manual re-push)
 - `theo_notion_sync.py` - pull Notion edits back to final_edited; Y/N prompt before overwrite
