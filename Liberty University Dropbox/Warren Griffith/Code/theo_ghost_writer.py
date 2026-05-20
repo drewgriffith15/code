@@ -24,9 +24,11 @@ load_dotenv(r"C:\Users\wgriffith2\.claude\.env.personal", override=True)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 
-DRAFTS_DIR = Path(__file__).parent / "lessons" / "drafts"
-TEMP_DIR = Path(__file__).parent / "lessons" / "temp"
-VOICE_PATTERNS_PATH = Path(__file__).parent / "references" / "voice_patterns.json"
+CONSTRUCT_ROOT = Path("C:/Users/wgriffith2/Dropbox (Liberty University)/Construct")
+LESSONS_DIR = CONSTRUCT_ROOT / "wiki" / "theology" / "lessons"
+DRAFTS_DIR = LESSONS_DIR
+TEMP_DIR = LESSONS_DIR / "_temp"
+VOICE_PATTERNS_PATH = Path(__file__).parent / "voice_patterns.json"
 
 THEO_FULL_PAGE_ID = os.getenv("THEO_FULL_PAGE_ID", "35bee045d5ec80da97b8d003434ffb43")
 
@@ -446,10 +448,8 @@ def _load_sidecar(outline_path: Path) -> str | None:
 # PIPELINE
 # ============================================================
 
-def _make_draft_filename(slug: str) -> str:
-    dt = datetime.date.today().isoformat().replace("-", "")
-    ts = datetime.datetime.now().strftime("%H%M%S")
-    return f"{dt}_{ts}_{slug}_draft.md"
+def _make_draft_filename(outline_path: Path) -> str:
+    return f"{outline_path.stem}_draft.md"
 
 
 def extract_point_sections(outline: str) -> list:
@@ -473,9 +473,6 @@ def run_draft(outline_path: str, ghost_writer: bool = True):
         sys.exit(1)
 
     outline = op.read_text(encoding="utf-8")
-    scripture = extract_primary_scripture(outline)
-    slug = scripture_to_slug(scripture) if scripture else "unknown"
-
     outline_notion_page_id = _load_sidecar(op)
 
     voice_patterns = load_voice_patterns()
@@ -487,7 +484,7 @@ def run_draft(outline_path: str, ghost_writer: bool = True):
 
     print("Generating intro...")
     intro = generate_intro(outline, voice_guide)
-    (TEMP_DIR / "theo_intro.md").write_text(intro, encoding="utf-8")
+    (TEMP_DIR / "draft_intro.md").write_text(intro, encoding="utf-8")
 
     point_sections = extract_point_sections(outline)
     points = []
@@ -504,16 +501,16 @@ def run_draft(outline_path: str, ghost_writer: bool = True):
         pt = generate_point(running, note, section, voice_guide)
         points.append(pt)
         running = running + "\n\n" + pt
-        (TEMP_DIR / f"theo_point{i}.md").write_text(pt, encoding="utf-8")
+        (TEMP_DIR / f"draft_point{i}.md").write_text(pt, encoding="utf-8")
 
     conclusion_section = extract_conclusion_section(outline)
     print("Generating conclusion...")
     conclusion = generate_conclusion(running, conclusion_section, voice_guide)
-    (TEMP_DIR / "theo_conclusion.md").write_text(conclusion, encoding="utf-8")
+    (TEMP_DIR / "draft_conclusion.md").write_text(conclusion, encoding="utf-8")
 
     print("Generating discussion questions...")
     discussion = generate_discussion(outline)
-    (TEMP_DIR / "theo_discussion.md").write_text(discussion, encoding="utf-8")
+    (TEMP_DIR / "draft_discussion.md").write_text(discussion, encoding="utf-8")
 
     sections = [intro] + points + ["\n## CONCLUSION & PRAYER\n", conclusion, "\n## REAL TALK\n", discussion]
     draft = "\n\n".join(sections)
@@ -522,7 +519,7 @@ def run_draft(outline_path: str, ghost_writer: bool = True):
         print("Running ghost-writer...")
         draft = generate_ghost_writer(draft)
 
-    draft_filename = _make_draft_filename(slug)
+    draft_filename = _make_draft_filename(op)
     draft_path = DRAFTS_DIR / draft_filename
     draft_path.write_text(draft, encoding="utf-8")
     print(f"Draft saved: {draft_path}")
