@@ -621,7 +621,7 @@ return
 ;############################################################################################################
 ^!y::
 {
-    Run, powershell.exe -NoExit -Command "cd 'C:\Users\wgriffith2\Dropbox (Liberty University)\Code'; python ingest_youtube.py --playlist"
+    Run, powershell.exe -Command "cd 'C:\Users\wgriffith2\Dropbox (Liberty University)\Code'; python ingest_youtube.py --playlist"
     Return
 }
 
