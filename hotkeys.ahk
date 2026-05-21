@@ -287,34 +287,6 @@ Send {Delete}
 Return
 
 ;############################################################################################################
-; EXCEL
-;############################################################################################################
-
-::now,,::
-{
-SendRaw, =
-Send NOW()
-Sleep 1000
-Send {TAB}
-Sleep 500
-Send {LEFT}
-Sleep 500
-Clipboard:= ;
-Send {CTRLDOWN}c{CTRLUP}
-Sleep 200
-Send {CTRLDOWN}v{CTRLUP}
-Sleep 200
-Send {ALTDOWN}esv{ALTUP}
-Sleep 200
-Send {ENTER}
-Sleep 200
-Send {TAB}
-Sleep 200
-Send {TAB}
-Return
-}
-
-;############################################################################################################
 ; ORACLE SQL
 ;############################################################################################################
 
@@ -635,15 +607,6 @@ return
     A_Clipboard := "cd ""C:\Users\wgriffith2\Dropbox (Liberty University)\Liberty University"" && . $HOME\.claude\set-work.ps1 && claude"
     Send, ^v
     ToolTip, Work command pasted!
-    SetTimer, RemoveToolTip, 2000
-    Return
-}
-
-^!p::  ; Ctrl+Alt+P for Personal
-{
-    A_Clipboard := "cd ""C:\Users\wgriffith2\Dropbox (Liberty University)\Code"" && . $HOME\.claude\set-personal.ps1 && claude"
-    Send, ^v
-    ToolTip, Personal command pasted!
     SetTimer, RemoveToolTip, 2000
     Return
 }

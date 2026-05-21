@@ -37,85 +37,10 @@
     <tr><td><span class="key">Ctrl+Alt+H</span></td><td class="desc">Open this help page</td><td></td></tr>
     <tr><td><span class="key">Ctrl+Alt+V</span></td><td class="desc">Launch VoiceDictate (system tray)</td><td class="note">F9 toggles mic on/off once running</td></tr>
     <tr><td><span class="key">Ctrl+Alt+W</span></td><td class="desc">Claude Code - Work env (Liberty)</td><td class="note">Pastes cd + set-work.ps1 + claude</td></tr>
-    <tr><td><span class="key">Ctrl+Alt+P</span></td><td class="desc">Claude Code - Personal env</td><td class="note">Pastes cd + set-personal.ps1 + claude</td></tr>
     <tr><td><span class="key">Ctrl+Alt+G</span></td><td class="desc">Git commit to Bitbucket (bash)</td><td class="note">Prompts: Update or Initial commit</td></tr>
     <tr><td><span class="key">Ctrl+Alt+N</span></td><td class="desc">ServiceNow ticket template</td><td class="note">Pastes pre-filled description block</td></tr>
-    <tr><td><span class="key">Ctrl+Alt+Y</span></td><td class="desc">CONSTRUCT Ingest - YouTube transcript fetch</td><td class="note">Runs ingest_youtube.py --playlist</td></tr>
-    <tr><td><span class="key">Ctrl+Alt+I</span></td><td class="desc">CONSTRUCT Ingest - Raw transcript/wiki push</td><td class="note">Runs ingest_raw.py --run</td></tr>
-  </tbody>
-</table>
-
-<!-- ═══════════════════════════════════════════════════════ SHORTHANDS -->
-<h2>Text Shorthands (type trigger + ,, to expand)</h2>
-
-<h3>Phrases</h3>
-<div class="grid">
-  <table>
-    <thead><tr><th>Trigger</th><th>Expands To</th></tr></thead>
-    <tbody>
-      <tr><td><span class="cmd">btw,,</span></td><td class="desc">by the way</td></tr>
-      <tr><td><span class="cmd">tbh,,</span></td><td class="desc">to be honest,</td></tr>
-      <tr><td><span class="cmd">imo,,</span></td><td class="desc">in my opinion,</td></tr>
-      <tr><td><span class="cmd">nbd,,</span></td><td class="desc">no big deal</td></tr>
-      <tr><td><span class="cmd">lmk,,</span></td><td class="desc">let me know</td></tr>
-      <tr><td><span class="cmd">rn,,</span></td><td class="desc">right now</td></tr>
-      <tr><td><span class="cmd">fr,,</span></td><td class="desc">for real</td></tr>
-      <tr><td><span class="cmd">jms,,</span></td><td class="desc">just making sure</td></tr>
-      <tr><td><span class="cmd">jic,,</span></td><td class="desc">just in case</td></tr>
-      <tr><td><span class="cmd">jk,,</span></td><td class="desc">just kidding</td></tr>
-    </tbody>
-  </table>
-  <table>
-    <thead><tr><th>Trigger</th><th>Expands To</th></tr></thead>
-    <tbody>
-      <tr><td><span class="cmd">ty,,</span></td><td class="desc">thank you</td></tr>
-      <tr><td><span class="cmd">yw,,</span></td><td class="desc">you're welcome</td></tr>
-      <tr><td><span class="cmd">np,,</span></td><td class="desc">no problem!</td></tr>
-      <tr><td><span class="cmd">omg,,</span></td><td class="desc">oh my goodness</td></tr>
-      <tr><td><span class="cmd">wth,,</span></td><td class="desc">what the heck!</td></tr>
-      <tr><td><span class="cmd">idk,,</span></td><td class="desc">I don't know</td></tr>
-      <tr><td><span class="cmd">idc,,</span></td><td class="desc">I don't care</td></tr>
-      <tr><td><span class="cmd">ikr,,</span></td><td class="desc">I know, right?</td></tr>
-      <tr><td><span class="cmd">nm,,</span></td><td class="desc">never mind</td></tr>
-      <tr><td><span class="cmd">irl,,</span></td><td class="desc">in real life</td></tr>
-      <tr><td><span class="cmd">bc,,</span></td><td class="desc">because</td></tr>
-      <tr><td><span class="cmd">100,,</span></td><td class="desc">exactly (hundred</td></tr>
-      <tr><td><span class="cmd">pb,,</span></td><td class="desc">(victory) (pray) emoji pair</td></tr>
-    </tbody>
-  </table>
-</div>
-
-<h3>Email Addresses</h3>
-<table>
-  <thead><tr><th>Trigger</th><th>Expands To</th></tr></thead>
-  <tbody>
-    <tr><td><span class="cmd">kylesky,,</span></td><td class="desc">culpepperhouse@ourskylight.com</td></tr>
-    <tr><td><span class="cmd">gigisky,,</span></td><td class="desc">rdculpepper@ourskylight.com</td></tr>
-    <tr><td><span class="cmd">drewsky,,</span></td><td class="desc">griffith_family@ourskylight.com</td></tr>
-  </tbody>
-</table>
-
-<h3>Oracle SQL</h3>
-<table>
-  <thead><tr><th>Trigger</th><th>Expands To</th></tr></thead>
-  <tbody>
-    <tr><td><span class="cmd">sf,,</span></td><td class="desc">select * from utl_d_</td></tr>
-    <tr><td><span class="cmd">cte,,</span></td><td class="desc">WITH rec AS ( ) template</td></tr>
-    <tr><td><span class="cmd">dup,,</span></td><td class="desc">Duplicate check query (COUNT OVER PARTITION)</td></tr>
-    <tr><td><span class="cmd">rank,,</span></td><td class="desc">rank() over (partition by ... order by ...) snippet</td></tr>
-    <tr><td><span class="cmd">listagg,,</span></td><td class="desc">listagg(distinct ...) within GROUP snippet</td></tr>
-    <tr><td><span class="cmd">create,,</span></td><td class="desc">DROP + CREATE TABLE WAG_TMP template</td></tr>
-    <tr><td><span class="cmd">grant,,</span></td><td class="desc">Targeted grant + loop-all-objects-in-schema block</td></tr>
-    <tr><td><span class="cmd">search,,</span></td><td class="desc">all_tab_columns search query (UTL_D_LMS)</td></tr>
-    <tr><td><span class="cmd">spl,,</span></td><td class="desc">Clipboard string list -> SQL IN ('A','B','C') format</td></tr>
-  </tbody>
-</table>
-
-<h3>Excel</h3>
-<table>
-  <thead><tr><th>Trigger</th><th>Expands To</th></tr></thead>
-  <tbody>
-    <tr><td><span class="cmd">now,,</span></td><td class="desc">=NOW() formula, pastes as value, advances cell</td></tr>
+    <tr><td><span class="key">Ctrl+Alt+Y</span></td><td class="desc">YouTube transcript fetch</td><td class="note">Construct - Runs ingest_youtube.py --playlist</td></tr>
+    <tr><td><span class="key">Ctrl+Alt+I</span></td><td class="desc">Raw transcript/wiki push</td><td class="note">Construct - Runs ingest_raw.py --run</td></tr>
   </tbody>
 </table>
 
@@ -188,6 +113,72 @@
   <tbody>
     <tr><td><span class="key">/update-config</span></td><td class="desc">Configure Claude Code hooks, permissions, and settings.json</td></tr>
     <tr><td><span class="key">/schedule</span></td><td class="desc">Create/manage recurring or one-time scheduled Claude agents (cron)</td></tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════ SHORTHANDS -->
+<h2>Text Shorthands (type trigger + ,, to expand)</h2>
+
+<h3>Phrases</h3>
+<div class="grid">
+  <table>
+    <thead><tr><th>Trigger</th><th>Expands To</th></tr></thead>
+    <tbody>
+      <tr><td><span class="cmd">btw,,</span></td><td class="desc">by the way</td></tr>
+      <tr><td><span class="cmd">tbh,,</span></td><td class="desc">to be honest,</td></tr>
+      <tr><td><span class="cmd">imo,,</span></td><td class="desc">in my opinion,</td></tr>
+      <tr><td><span class="cmd">nbd,,</span></td><td class="desc">no big deal</td></tr>
+      <tr><td><span class="cmd">lmk,,</span></td><td class="desc">let me know</td></tr>
+      <tr><td><span class="cmd">rn,,</span></td><td class="desc">right now</td></tr>
+      <tr><td><span class="cmd">fr,,</span></td><td class="desc">for real</td></tr>
+      <tr><td><span class="cmd">jms,,</span></td><td class="desc">just making sure</td></tr>
+      <tr><td><span class="cmd">jic,,</span></td><td class="desc">just in case</td></tr>
+      <tr><td><span class="cmd">jk,,</span></td><td class="desc">just kidding</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th>Trigger</th><th>Expands To</th></tr></thead>
+    <tbody>
+      <tr><td><span class="cmd">ty,,</span></td><td class="desc">thank you</td></tr>
+      <tr><td><span class="cmd">yw,,</span></td><td class="desc">you're welcome</td></tr>
+      <tr><td><span class="cmd">np,,</span></td><td class="desc">no problem!</td></tr>
+      <tr><td><span class="cmd">omg,,</span></td><td class="desc">oh my goodness</td></tr>
+      <tr><td><span class="cmd">wth,,</span></td><td class="desc">what the heck!</td></tr>
+      <tr><td><span class="cmd">idk,,</span></td><td class="desc">I don't know</td></tr>
+      <tr><td><span class="cmd">idc,,</span></td><td class="desc">I don't care</td></tr>
+      <tr><td><span class="cmd">ikr,,</span></td><td class="desc">I know, right?</td></tr>
+      <tr><td><span class="cmd">nm,,</span></td><td class="desc">never mind</td></tr>
+      <tr><td><span class="cmd">irl,,</span></td><td class="desc">in real life</td></tr>
+      <tr><td><span class="cmd">bc,,</span></td><td class="desc">because</td></tr>
+      <tr><td><span class="cmd">100,,</span></td><td class="desc">exactly (hundred</td></tr>
+      <tr><td><span class="cmd">pb,,</span></td><td class="desc">(victory) (pray) emoji pair</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h3>Oracle SQL</h3>
+<table>
+  <thead><tr><th>Trigger</th><th>Expands To</th></tr></thead>
+  <tbody>
+    <tr><td><span class="cmd">sf,,</span></td><td class="desc">select * from utl_d_</td></tr>
+    <tr><td><span class="cmd">cte,,</span></td><td class="desc">WITH rec AS ( ) template</td></tr>
+    <tr><td><span class="cmd">dup,,</span></td><td class="desc">Duplicate check query (COUNT OVER PARTITION)</td></tr>
+    <tr><td><span class="cmd">rank,,</span></td><td class="desc">rank() over (partition by ... order by ...) snippet</td></tr>
+    <tr><td><span class="cmd">listagg,,</span></td><td class="desc">listagg(distinct ...) within GROUP snippet</td></tr>
+    <tr><td><span class="cmd">create,,</span></td><td class="desc">DROP + CREATE TABLE WAG_TMP template</td></tr>
+    <tr><td><span class="cmd">grant,,</span></td><td class="desc">Targeted grant + loop-all-objects-in-schema block</td></tr>
+    <tr><td><span class="cmd">search,,</span></td><td class="desc">all_tab_columns search query (UTL_D_LMS)</td></tr>
+    <tr><td><span class="cmd">spl,,</span></td><td class="desc">Clipboard string list -> SQL IN ('A','B','C') format</td></tr>
+  </tbody>
+</table>
+
+<h2>Email Addresses</h2>
+<table>
+  <thead><tr><th>Trigger</th><th>Expands To</th></tr></thead>
+  <tbody>
+    <tr><td><span class="cmd">kylesky,,</span></td><td class="desc">culpepperhouse@ourskylight.com</td></tr>
+    <tr><td><span class="cmd">gigisky,,</span></td><td class="desc">rdculpepper@ourskylight.com</td></tr>
+    <tr><td><span class="cmd">drewsky,,</span></td><td class="desc">griffith_family@ourskylight.com</td></tr>
   </tbody>
 </table>
 
