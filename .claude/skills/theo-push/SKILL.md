@@ -1,7 +1,6 @@
 ---
 name: theo-push
 description: Push a locally edited THEO lesson draft to Notion. Accepts a markdown file path from Construct/wiki/theology/lessons/, creates a private page under the THEO hub, and returns the Notion URL. Use when Drew is done editing a draft locally and wants to publish it to Notion.
-model: claude-sonnet-4-6
 ---
 
 # THEO Notion Push

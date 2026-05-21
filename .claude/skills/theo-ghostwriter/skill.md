@@ -1,7 +1,6 @@
 ---
 name: theo-ghostwriter
 description: THEO ghost-writer pipeline. Use when Drew wants to generate a complete lesson draft from an existing outline file. Accepts a single outline path from Construct/wiki/theology/outlines/, runs theo_ghost_writer.py draft mode, reports the draft path in Construct/wiki/theology/lessons/.
-model: claude-sonnet-4-6
 ---
 
 # THEO Ghost-Writer Pipeline

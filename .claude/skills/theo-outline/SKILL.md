@@ -1,7 +1,6 @@
 ---
 name: theo-outline
 description: THEO outline pipeline. Use when Drew wants to generate one or more lesson outlines from sermon transcript files. Accepts one or more file paths, asks for lesson dates, runs theo_outline.py for each, saves outlines to Construct, pushes to Notion.
-model: claude-sonnet-4-6
 ---
 
 # THEO Outline Pipeline

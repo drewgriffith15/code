@@ -1,7 +1,7 @@
 ---
 name: ocd-check
 description: Standalone code quality and architecture review. Run after a build session, before a major refactor, or any time the codebase feels drifty. Scopes to recently changed files via git diff. Blends architectural depth analysis (seams, modules, leverage) with modularity, security, doc-sync, and a commit-ready git summary. Use when Drew types /ocd-check or asks for an OCD check, architecture review, or code cleanup outside of a build session.
-model: claude-haiku-4-5-20251001
+model: claude-haiku-4-5
 ---
 
 # OCD Check
@@ -9,6 +9,33 @@ model: claude-haiku-4-5-20251001
 A standalone code quality and architecture review. Scoped to recently changed files — not the whole codebase. Token-efficient, targeted, and structured.
 
 Vocabulary for architecture analysis is defined in [LANGUAGE.md](LANGUAGE.md). Use those terms exactly. Don't drift into "service," "component," "boundary," or "API."
+
+---
+
+## WALLED GARDEN VALIDATION (Pre-Phase)
+
+**CRITICAL: Run this first, before all phases.**
+
+Ask Drew to confirm repo type. Options:
+- Work (BitBucket) — Liberty University ADS_ETL projects
+- Personal (GitHub) — drewgriffith15 personal repos
+
+Once confirmed, validate the git remote matches:
+
+```bash
+git config --get remote.origin.url
+```
+
+**Validation rules:**
+- Work repos MUST have `bitbucket.liberty.edu` in remote
+- Personal repos MUST have `github.com/drewgriffith15` in remote
+
+If mismatch:
+> WALLED GARDEN VIOLATION. You said this is [work/personal], but the remote is [GitHub/BitBucket]. This repo is configured for the wrong environment. Fix the git remote or switch to the correct working directory.
+
+Stop and do not proceed. This catches configuration errors before any commits.
+
+If valid, proceed to Phase 0.
 
 ---
 
@@ -181,7 +208,7 @@ If Drew says yes, run:
    If the remote doesn't match either entry, STOP and ask Drew before proceeding.
 
 2. `git add` on only the files modified during this check (no `git add -A`)
-3. `git commit -m "[summary]"` appending `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
+3. `git commit -m "[summary]"` — no Co-Authored-By attribution on work commits (BitBucket remotes)
 4. `git push`
 5. Report the result.
 
