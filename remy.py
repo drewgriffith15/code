@@ -1,12 +1,10 @@
-# REMY
-# REMY (Recipe Engine for Meal Yielding) is a personal meal planning system inspired by
-# the rat chef in Ratatouille: bringing taste and culinary intuition to weekly family meal
-# planning. It stores family dinner recipes as structured JSON, manages a frozen food
-# inventory from Ellsworth (a 6-month food delivery service), and drives a weekly meal
-# planning conversation that outputs to Notion.
+# REMY (Recipe Engine for Meal Yielding)
+# Personal weekly meal planning system.
+# Reads data from Construct wiki markdown files. Pushes plan + grocery list to Notion.
 
 import os
 import sys
+import csv
 import json
 import argparse
 import random
@@ -14,14 +12,12 @@ import re
 from pathlib import Path
 from datetime import datetime, timedelta, date
 from collections import Counter
-from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent.parent / '.env', override=True)
-sys.path.insert(0, str(Path(__file__).parent))
-import tank
+load_dotenv(Path.home() / ".claude" / ".env.personal", override=True)
 
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
+WIKI_FOOD = Path(os.getenv("WIKI_FOOD", ""))
 
 PROTEIN_GROUPS = {
     "Chicken Breast": "chicken", "Chicken Thighs": "chicken", "Whole Chicken": "chicken",
@@ -43,31 +39,55 @@ FREQUENCY_26W = {
 POTATO_STARCHES = {"Yellow Potatoes", "Red Potatoes", "Sweet Potatoes", "Russet Potatoes"}
 RICE_STARCHES = {"Jasmine Rice", "Brown Rice"}
 
-CONSUMPTION_RATES = {
-    "Ground Beef": 1,
-    "Ground Pork": 1,
-    "Ground Turkey": 1,
-    "Chicken Breast": 6,
-    "Chicken Thighs": 0.5,
-    "Pork Chops": 6,
-    "Pork Tenderloin": 2,
-    "Flank Steak": 1,
-    "Stew Beef": 2,
-    "Whole Chicken": 1,
-    "Link Sausage": 1,
-    "Shrimp": 0.5,
-    "Green Beans": 2,
-    "Brussel Sprouts": 2,
-    "Squash": 2,
-    "Broccoli": 2,
-    "Okra": 2,
-    "Black Eyed Peas": 2,
-    "Green Peas": 2,
-    "Corn": 2,
-}
-
 _ELLSWORTH_NAMES: set = set()
 _data_load_summary: dict = {}
+
+
+def _current_season() -> str:
+    month = datetime.now().month
+    return "spring-summer" if 3 <= month <= 8 else "fall-winter"
+
+
+# ── Markdown parsing ───────────────────────────────────────────────────────────
+
+def _parse_frontmatter(text: str) -> dict:
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return {}
+    fm = {}
+    for line in parts[1].splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ": " in line:
+            key, _, val = line.partition(": ")
+        elif line.endswith(":"):
+            key, val = line[:-1], ""
+        else:
+            continue
+        key = key.strip()
+        val = val.strip()
+        if val.startswith("[") and val.endswith("]"):
+            fm[key] = [v.strip() for v in val[1:-1].split(",")]
+        elif val.lower() == "true":
+            fm[key] = True
+        elif val.lower() == "false":
+            fm[key] = False
+        elif val.lower() in ("null", "~", ""):
+            fm[key] = None
+        else:
+            fm[key] = val
+    return fm
+
+
+def _parse_json_block(text: str) -> dict:
+    m = re.search(r"```json\s*\n([\s\S]+?)\n```", text)
+    if not m:
+        return {}
+    try:
+        return json.loads(m.group(1))
+    except json.JSONDecodeError:
+        return {}
 
 
 # ── Notion block builders ──────────────────────────────────────────────────────
@@ -134,7 +154,7 @@ def _notion():
         print("ERROR: notion-client not installed. Run: python -m pip install notion-client")
         sys.exit(1)
     if not NOTION_TOKEN:
-        print("ERROR: NOTION_TOKEN not set in .env")
+        print("ERROR: NOTION_TOKEN not set in .env.personal")
         sys.exit(1)
     return Client(auth=NOTION_TOKEN)
 
@@ -156,82 +176,124 @@ def _append_blocks(client, page_id, blocks):
 
 # ── Data loading ───────────────────────────────────────────────────────────────
 
-def _parse_history_atom(atom):
-    content = atom.get("content", "")
-    try:
-        data = json.loads(content)
-        if isinstance(data, dict) and "week_of" in data:
-            return data
-    except (json.JSONDecodeError, TypeError):
-        pass
-
-    title = atom.get("title", "")
-    m = re.search(r"(\d{4}-\d{2}-\d{2})", title)
-    week_of = m.group(1) if m else ""
-    meals = []
-    for line in content.strip().splitlines():
-        line = line.strip()
-        if not line.startswith("- "):
-            continue
-        line = line[2:]
-        pm = re.match(r"^(.+?)\s*\(([^)]+)\)", line)
-        if pm:
-            meal_name = pm.group(1).strip()
-            protein = pm.group(2).strip()
-            after = line[pm.end():].strip()
-            side = after.split("| side:")[1].strip() if "| side:" in after else None
-            meals.append({"meal": meal_name, "protein": protein, "side": side})
-    return {"week_of": week_of, "meals": meals}
-
-
-def load_data():
-    global _ELLSWORTH_NAMES
-
-    recipes_raw = tank.query(domain="food", type="recipe", limit=200)
+def _load_recipes() -> list:
+    recipes_dir = WIKI_FOOD / "recipes"
     recipes = []
-    for r in recipes_raw:
-        try:
-            content = json.loads(r["content"]) if r.get("content") else {}
-        except (json.JSONDecodeError, TypeError):
-            content = {}
-        content["_atom_id"] = r["id"]
-        content["_title"] = r["title"]
-        recipes.append(content)
+    for path in sorted(recipes_dir.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        fm = _parse_frontmatter(text)
+        tags = fm.get("tags", [])
+        if isinstance(tags, str):
+            tags = [tags]
+        if "remy" not in tags:
+            continue
+        data = _parse_json_block(text)
+        if not data:
+            continue
+        if fm.get("season"):
+            data["season"] = fm["season"]
+        data.setdefault("meal_type", fm.get("meal_type"))
+        data.setdefault("protein", fm.get("protein"))
+        data.setdefault("effort", fm.get("effort"))
+        data.setdefault("needs_side", fm.get("needs_side", False))
+        data.setdefault("recommended_starch", fm.get("recommended_starch"))
+        data["_file"] = str(path)
+        recipes.append(data)
+    return recipes
 
-    data_atoms = tank.query(domain="food", type="data", limit=20)
-    by_title = {a["title"]: a for a in data_atoms}
 
-    ell_atom = by_title.get("ellsworth_active_inventory")
-    ellsworth = json.loads(ell_atom["content"]) if ell_atom else []
-    _ELLSWORTH_NAMES = {row["Name"].lower() for row in ellsworth}
+def _load_ellsworth() -> tuple:
+    path = WIKI_FOOD / "ellsworth_last_order.md"
+    text = path.read_text(encoding="utf-8")
+    parts = text.split("---", 2)
+    body = parts[2] if len(parts) >= 3 else text
+    lines = [l for l in body.strip().splitlines() if l.strip() and not l.startswith("#")]
+    reader = csv.DictReader(lines)
+    proteins, veggies, all_names = [], [], set()
+    seen_names = set()
+    for row in reader:
+        item = row.get("Item", "").strip()
+        name = row.get("Name", "").strip()
+        schedule = row.get("Schedule", "Once a month").strip()
+        if not name or name in seen_names:
+            continue
+        seen_names.add(name)
+        all_names.add(name.lower())
+        if name in PROTEIN_GROUPS:
+            proteins.append({"Name": name, "Schedule": schedule})
+        else:
+            veggies.append({"Name": name})
+    return proteins, veggies, all_names
 
-    pantry_atom = by_title.get("pantry_staples")
-    pantry = json.loads(pantry_atom["content"]) if pantry_atom else {}
 
-    cfg_atom = by_title.get("notion_config")
-    notion_cfg = json.loads(cfg_atom["content"]) if cfg_atom else {}
+def _load_depleted() -> set:
+    path = WIKI_FOOD / "ellsworth_next_order_notes.md"
+    if not path.exists():
+        return set()
+    text = path.read_text(encoding="utf-8")
+    depleted = set()
+    in_section = False
+    for line in text.splitlines():
+        if "Proteins That Ran Out Early" in line:
+            in_section = True
+            continue
+        if in_section and line.startswith("##"):
+            break
+        if in_section and line.startswith("|") and "---" not in line and "Protein" not in line:
+            cols = [c.strip() for c in line.strip("|").split("|")]
+            if cols and cols[0]:
+                depleted.add(cols[0].strip())
+    return depleted
 
-    log_atoms = tank.query(domain="food", type="log", limit=100)
-    history = []
-    for r in log_atoms:
-        if "Meal plan week of" in (r.get("title") or ""):
-            parsed = _parse_history_atom(r)
-            if parsed.get("week_of"):
-                history.append(parsed)
-    history.sort(key=lambda w: w["week_of"])
 
-    global _data_load_summary
+def _load_md_json(filename: str) -> dict:
+    path = WIKI_FOOD / filename
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    return _parse_json_block(text)
+
+
+def _load_history() -> list:
+    path = WIKI_FOOD / "logs" / "meal-history.json"
+    if not path.exists():
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def load_data() -> dict:
+    global _ELLSWORTH_NAMES, _data_load_summary
+
+    recipes = _load_recipes()
+    proteins, veggies, all_names = _load_ellsworth()
+    depleted = _load_depleted()
+    _ELLSWORTH_NAMES = all_names
+
+    available_proteins = {p["Name"] for p in proteins if p["Name"] not in depleted}
+
+    pantry = _load_md_json("pantry-staples.md")
+    notion_cfg = _load_md_json("notion-config.md")
+    history = _load_history()
+
     _data_load_summary = {
         "recipes_loaded": len(recipes),
         "history_weeks_loaded": len(history),
-        "ellsworth_rows_loaded": len(ellsworth),
-        "data_atoms_loaded": len(data_atoms),
-        "constraints": ["protein_pacing_26wk", "3wk_no_repeat", "starch_clash", "dietary_gf_dairy_almond"],
+        "ellsworth_proteins": len(proteins),
+        "depleted": list(depleted),
+        "constraints": ["protein_pacing_26wk", "3wk_no_repeat", "starch_clash", "seasonal_boost", "dietary_gf_dairy_almond"],
     }
 
     return {
         "recipes": recipes,
-        "ellsworth": ellsworth,
+        "ellsworth_proteins": proteins,
+        "ellsworth_veggies": veggies,
+        "available_proteins": available_proteins,
+        "depleted_proteins": depleted,
         "pantry": pantry,
         "notion_config": notion_cfg,
         "history": history,
@@ -240,7 +302,7 @@ def load_data():
 
 # ── Protein pacing ─────────────────────────────────────────────────────────────
 
-def pacing_scores(history, ellsworth):
+def pacing_scores(history, ellsworth_proteins):
     recent_26 = sorted(history, key=lambda w: w.get("week_of", ""), reverse=True)[:26]
     usage = Counter()
     for week in recent_26:
@@ -250,7 +312,7 @@ def pacing_scores(history, ellsworth):
                 usage[protein] += 1
 
     scores = {}
-    for row in ellsworth:
+    for row in ellsworth_proteins:
         name = row.get("Name", "")
         schedule = row.get("Schedule", "Once a month")
         expected = FREQUENCY_26W.get(schedule, 6.5)
@@ -274,49 +336,38 @@ def pacing_scores(history, ellsworth):
 
 # ── Recipe filtering ───────────────────────────────────────────────────────────
 
-def filter_recipes(recipes, ellsworth, history):
-    available_proteins = {
-        row["Name"] for row in ellsworth
-        if int(float(row.get("Qty", 0))) > 0
-    }
-
+def filter_recipes(recipes, available_proteins, history):
     recent_meals = set()
     for week in sorted(history, key=lambda w: w.get("week_of", ""), reverse=True)[:3]:
         for m in week.get("meals", []):
             recent_meals.add(m.get("meal", "").lower())
 
-    eligible = [
+    return [
         r for r in recipes
         if r.get("meal_type") == "dinner"
         and r.get("protein", "") in available_proteins
         and r.get("meal", "").lower() not in recent_meals
     ]
-    return eligible, available_proteins
 
 
 # ── Side veggie assignment ─────────────────────────────────────────────────────
 
-def _assign_veggie(recipe, ellsworth, starch):
+def _assign_veggie(recipe, ellsworth_veggies, starch):
     starch_is_potato = starch and any(p in starch for p in POTATO_STARCHES)
 
     veggie_addins = recipe.get("veggie_addins")
     if veggie_addins:
-        candidates = [
-            v for v in veggie_addins
-            if not (starch_is_potato and "corn" in v.lower())
-        ]
+        candidates = [v for v in veggie_addins if not (starch_is_potato and "corn" in v.lower())]
         return random.choice(candidates) if candidates else None
 
     if not recipe.get("needs_side"):
         return None
 
-    available_veggies = [
-        row["Name"] for row in ellsworth
-        if row.get("Item", "").startswith("4")
-        and int(float(row.get("Qty", 0))) > 0
-        and not (starch_is_potato and "corn" in row["Name"].lower())
+    available = [
+        row["Name"] for row in ellsworth_veggies
+        if not (starch_is_potato and "corn" in row["Name"].lower())
     ]
-    return random.choice(available_veggies) if available_veggies else None
+    return random.choice(available) if available else None
 
 
 # ── Meal proposal ──────────────────────────────────────────────────────────────
@@ -340,8 +391,11 @@ def _normalize_days(day_list):
 def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=None, avoid=None):
     data = load_data()
     recipes = data["recipes"]
-    ellsworth = data["ellsworth"]
+    ellsworth_veggies = data["ellsworth_veggies"]
+    ellsworth_proteins = data["ellsworth_proteins"]
+    available_proteins = data["available_proteins"]
     history = data["history"]
+    season = _current_season()
 
     if not start_date:
         today = date.today()
@@ -356,10 +410,9 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
     all_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     active_days = [d for d in all_days if d not in eating_out_days]
 
-    eligible, _ = filter_recipes(recipes, ellsworth, history)
-    scores = pacing_scores(history, ellsworth)
+    eligible = filter_recipes(recipes, available_proteins, history)
+    scores = pacing_scores(history, ellsworth_proteins)
 
-    # Hard-filter avoided proteins and meal names
     if avoid_set:
         eligible = [
             r for r in eligible
@@ -376,7 +429,9 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
             any(c in r.get("protein", "").lower() for c in craving_set) or
             any(c in r.get("meal", "").lower() for c in craving_set)
         ) else 0
-        return base * 10 + eff + craving_boost + random.random()
+        recipe_season = r.get("season")
+        season_boost = -2 if recipe_season == season else (2 if recipe_season and recipe_season != season else 0)
+        return base * 10 + eff + craving_boost + season_boost + random.random()
 
     plan = {"week_of": start_date, "days": []}
     used_groups = []
@@ -384,8 +439,6 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
 
     for day in active_days:
         is_busy = day in busy_days
-
-        # For busy nights, only Low-effort meals qualify
         day_pool = [r for r in eligible if r.get("effort", "Medium") == "Low"] if is_busy else eligible[:]
         day_pool.sort(key=lambda r: priority(r, is_busy))
 
@@ -412,14 +465,12 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
             selected = recipe
             break
 
-        # Fallback: relax protein-group and AHEAD constraints
         if not selected:
             for recipe in day_pool:
                 if recipe.get("meal") not in used_titles:
                     selected = recipe
                     break
 
-        # Last resort: pull from full eligible pool
         if not selected:
             for recipe in eligible:
                 if recipe.get("meal") not in used_titles:
@@ -434,7 +485,7 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
         used_titles.add(selected.get("meal", ""))
 
         starch = selected.get("recommended_starch")
-        veggie = _assign_veggie(selected, ellsworth, starch)
+        veggie = _assign_veggie(selected, ellsworth_veggies, starch)
 
         thaw = []
         if protein:
@@ -468,9 +519,6 @@ def build_grocery_list(plan, pantry):
     for group in pantry.get("always_on_hand", {}).values():
         if isinstance(group, list):
             for item in group:
-                # Strip parentheticals like "(canned)", then split on "/" to get
-                # normalized variants. Avoids word-level extraction which causes
-                # false positives (e.g. "salt" from "Kosher Salt" blocking "unsalted butter").
                 base = re.sub(r'\(.*?\)', '', item).strip()
                 for variant in re.split(r'\s*/\s*', base):
                     v = variant.lower().strip()
@@ -519,11 +567,9 @@ def build_grocery_list(plan, pantry):
             item_str = ing.get("item", "").lower().strip()
             if not item_str:
                 continue
-
             if any(e in item_str for e in _ELLSWORTH_NAMES):
                 continue
-            skip = any(a in item_str for a in aoh_keys)
-            if skip:
+            if any(a in item_str for a in aoh_keys):
                 continue
 
             dedup_key = item_str[:25]
@@ -600,66 +646,18 @@ def save_history(plan):
         }
         for d in plan.get("days", [])
     ]
-    content_data = {
+    entry = {
         "week_of": week_of,
         "confirmed_at": datetime.now().isoformat(),
         "meals": meals,
     }
-    atom_id = tank.add_atom(
-        domain="food",
-        type="log",
-        title=f"Meal plan week of {week_of}",
-        content=json.dumps(content_data),
-        tags=["meal_plan"],
-    )
-    print(f"History saved: {atom_id} - week of {week_of}")
-    return atom_id
-
-
-# ── Inventory update ──────────────────────────────────────────────────────────
-
-def update_inventory(plan):
-    data_atoms = tank.query(domain="food", type="data", limit=20)
-    by_title = {a["title"]: a for a in data_atoms}
-    ell_atom = by_title.get("ellsworth_active_inventory")
-    if not ell_atom:
-        print("WARNING: ellsworth_active_inventory not found — skipping inventory update")
-        return
-
-    inventory = json.loads(ell_atom["content"])
-    inv_by_name = {row["Name"]: row for row in inventory}
-
-    decrements = {}
-    for day in plan.get("days", []):
-        protein = day.get("protein")
-        side = day.get("side")
-        if protein and protein in CONSUMPTION_RATES:
-            decrements[protein] = decrements.get(protein, 0) + CONSUMPTION_RATES[protein]
-        if side and side in CONSUMPTION_RATES:
-            decrements[side] = decrements.get(side, 0) + CONSUMPTION_RATES[side]
-
-    warnings = []
-    for name, amount in decrements.items():
-        if name not in inv_by_name:
-            continue
-        current = float(inv_by_name[name]["Qty"])
-        new_qty = current - amount
-        if new_qty < 0:
-            new_qty = 0
-            warnings.append(f"WARNING: {name} inventory insufficient — set to 0 (needed {amount}, had {current})")
-        inv_by_name[name]["Qty"] = new_qty
-        if new_qty == 0:
-            warnings.append(f"DEPLETED: {name} is now at 0")
-
-    updated = list(inv_by_name.values())
-    tank.update_content(ell_atom["id"], json.dumps(updated))
-
-    for w in warnings:
-        print(w)
-
-    if not warnings:
-        print("Inventory updated.")
-    return warnings
+    history_path = WIKI_FOOD / "logs" / "meal-history.json"
+    history = _load_history()
+    history.append(entry)
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(history_path, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2, ensure_ascii=False)
+    print(f"History saved: week of {week_of}")
 
 
 # ── Notion push: meal plan ─────────────────────────────────────────────────────
@@ -677,8 +675,8 @@ def push_plan(plan, notion_cfg):
         side = day_data.get("side")
         ingredients = day_data.get("ingredients", [])
         instructions_raw = day_data.get("instructions_raw", [])
-
         rice_starch = day_data.get("rice_starch")
+
         page_id = meal_pages.get(day)
         if not page_id:
             print(f"  WARNING: no page_id for {day}, skipping")
@@ -686,23 +684,16 @@ def push_plan(plan, notion_cfg):
 
         instructions = _enrich_instructions(ingredients, instructions_raw)
         _clear_page(client, page_id)
-        client.pages.update(
-            page_id=page_id,
-            properties={"title": {"title": _rt(meal)}}
-        )
+        client.pages.update(page_id=page_id, properties={"title": {"title": _rt(meal)}})
 
         blocks = [_h2(meal)]
-
         sides_parts = [s for s in [starch, side] if s]
         if sides_parts:
             blocks.append(_para("Sides: " + " + ".join(sides_parts)))
-
         if thaw:
             blocks.append(_callout("Thaw from freezer:  " + "  •  ".join(thaw), "❄️"))
-
         if rice_starch:
             blocks.append(_callout(f"Pre-make rice: {rice_starch}", "🍚"))
-
         if cook_time:
             blocks.append(_para(f"Total time: {cook_time}"))
 
@@ -732,7 +723,7 @@ def push_grocery(grocery_data, notion_cfg):
     client = _notion()
     page_id = notion_cfg.get("grocery_list_page")
     if not page_id:
-        print("ERROR: no grocery_list_page in notion_config")
+        print("ERROR: no grocery_list_page in notion-config.md")
         sys.exit(1)
 
     week_of = grocery_data.get("week_of", "")
@@ -783,22 +774,25 @@ def push_grocery(grocery_data, notion_cfg):
 # ── patch_starch ───────────────────────────────────────────────────────────────
 
 def patch_starch(meal_name, new_starch):
-    """Update recommended_starch on a recipe in Construct wiki."""
-    recipes = tank.query(domain="food", type="recipe", limit=200)
-    match = next((r for r in recipes if r["title"].lower() == meal_name.lower()), None)
-    if not match:
-        print(f"Recipe not found: {meal_name}")
+    recipes_dir = WIKI_FOOD / "recipes"
+    for path in recipes_dir.glob("*.md"):
+        text = path.read_text(encoding="utf-8")
+        data = _parse_json_block(text)
+        if data.get("meal", "").lower() != meal_name.lower():
+            continue
+        old_starch = data.get("recommended_starch")
+        data["recommended_starch"] = new_starch
+        new_json = json.dumps(data, indent=2, ensure_ascii=False)
+        new_text = re.sub(r"```json\s*\n[\s\S]+?\n```", f"```json\n{new_json}\n```", text, count=1)
+        new_text = re.sub(
+            r"^recommended_starch:.*$",
+            f"recommended_starch: {new_starch if new_starch else 'null'}",
+            new_text, flags=re.MULTILINE
+        )
+        path.write_text(new_text, encoding="utf-8")
+        print(f"Updated {meal_name}: '{old_starch}' -> '{new_starch}'")
         return
-
-    try:
-        content = json.loads(match["content"]) if match.get("content") else {}
-    except (json.JSONDecodeError, TypeError):
-        content = {}
-
-    old_starch = content.get("recommended_starch")
-    content["recommended_starch"] = new_starch
-    tank.update_content(match["id"], json.dumps(content))
-    print(f"Updated {meal_name}: '{old_starch}' -> '{new_starch}'")
+    print(f"Recipe not found: {meal_name}")
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
@@ -837,22 +831,16 @@ def cmd_plan(args):
 def cmd_push(args):
     with open(args.file, encoding="utf-8") as f:
         plan = json.load(f)
-
     data = load_data()
-    notion_cfg = data["notion_config"]
-    pantry = data["pantry"]
-
-    push_plan(plan, notion_cfg)
-    grocery = build_grocery_list(plan, pantry)
-    push_grocery(grocery, notion_cfg)
+    push_plan(plan, data["notion_config"])
+    grocery = build_grocery_list(plan, data["pantry"])
+    push_grocery(grocery, data["notion_config"])
     save_history(plan)
-    update_inventory(plan)
 
 
 def cmd_full(args):
     plan = propose_plan(start_date=getattr(args, "date", None))
     _print_plan(plan)
-
     data = load_data()
     push_plan(plan, data["notion_config"])
     grocery = build_grocery_list(plan, data["pantry"])
@@ -862,13 +850,14 @@ def cmd_full(args):
 
 def cmd_pacing(args):
     data = load_data()
-    scores = pacing_scores(data["history"], data["ellsworth"])
+    scores = pacing_scores(data["history"], data["ellsworth_proteins"])
+    depleted = data["depleted_proteins"]
     print(f"\nProtein pacing ({len(data['history'])} weeks of history):\n")
     for protein, info in sorted(scores.items(), key=lambda x: x[1]["status"]):
-        qty = next((int(float(r.get("Qty", 0))) for r in data["ellsworth"] if r["Name"] == protein), 0)
+        dep_flag = " [DEPLETED]" if protein in depleted else ""
         status_flag = {"BEHIND": "<<", "AHEAD": ">>", "ON_TRACK": "  "}.get(info["status"], "  ")
         print(f"  {status_flag} {protein:28} {info['status']:10} "
-              f"used={info['actual_26w']:2}  expected={info['expected_26w']:4}  in_stock={qty}")
+              f"used={info['actual_26w']:2}  expected={info['expected_26w']:4}{dep_flag}")
 
 
 def cmd_patch_starch(args):
@@ -893,7 +882,7 @@ def main():
     p_full = sub.add_parser("full", help="Generate plan + push to Notion (end-to-end)")
     p_full.add_argument("date", nargs="?", help="Start date YYYY-MM-DD (default: next Monday)")
 
-    p_pacing = sub.add_parser("pacing", help="Show protein pacing report")
+    sub.add_parser("pacing", help="Show protein pacing report")
 
     p_patch = sub.add_parser("patch-starch", help="Update recommended_starch on a recipe")
     p_patch.add_argument("meal", help="Exact recipe name")
