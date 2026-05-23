@@ -48,6 +48,10 @@ def _current_season() -> str:
     return "spring-summer" if 3 <= month <= 8 else "fall-winter"
 
 
+def _monday_of_week(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
 # ── Markdown parsing ───────────────────────────────────────────────────────────
 
 def _parse_frontmatter(text: str) -> dict:
@@ -172,6 +176,93 @@ def _clear_page(client, page_id):
 def _append_blocks(client, page_id, blocks):
     for i in range(0, len(blocks), 100):
         client.blocks.children.append(block_id=page_id, children=blocks[i:i + 100])
+
+
+def _update_notion_config(key: str, value: str):
+    path = WIKI_FOOD / "notion-config.md"
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    data = _parse_json_block(text)
+    data[key] = value
+    new_json = json.dumps(data, indent=2, ensure_ascii=False)
+    new_text = re.sub(r"```json\s*\n[\s\S]+?\n```", f"```json\n{new_json}\n```", text, count=1)
+    path.write_text(new_text, encoding="utf-8")
+    print(f"notion-config.md updated: {key} = {value}")
+
+
+_PROTEIN_COLORS = {
+    "chicken": "orange", "beef": "red", "pork": "brown",
+    "turkey": "yellow", "seafood": "blue",
+}
+
+
+_REQUIRED_DB_PROPERTIES = {"Meal Name", "Week Of", "Protein", "Protein Group", "Effort", "Starch", "Cook Time", "Total Time", "Vegetable"}
+
+
+def _apply_data_source_schema(client, ds_id: str, existing: set):
+    protein_opts = [
+        {"name": p, "color": _PROTEIN_COLORS.get(PROTEIN_GROUPS[p], "default")}
+        for p in PROTEIN_GROUPS
+    ]
+    group_opts = [
+        {"name": g, "color": _PROTEIN_COLORS.get(g, "default")}
+        for g in dict.fromkeys(PROTEIN_GROUPS.values())
+    ]
+    props = {
+        "Week Of": {"date": {}},
+        "Protein": {"select": {"options": protein_opts}},
+        "Protein Group": {"select": {"options": group_opts}},
+        "Effort": {"select": {"options": [
+            {"name": "Low", "color": "green"},
+            {"name": "Medium", "color": "yellow"},
+            {"name": "High", "color": "red"},
+        ]}},
+        "Starch": {"rich_text": {}},
+        "Cook Time": {"rich_text": {}},
+        "Total Time": {"rich_text": {}},
+        "Vegetable": {"rich_text": {}},
+    }
+    if "Name" in existing and "Meal Name" not in existing:
+        props["Name"] = {"name": "Meal Name"}
+    client.data_sources.update(ds_id, properties=props)
+
+
+def _get_or_create_database(client, notion_cfg) -> str:
+    db_id = notion_cfg.get("meal_database_id", "")
+
+    if db_id:
+        try:
+            db = client.databases.retrieve(database_id=db_id)
+            ds_id = (db.get("data_sources") or [{}])[0].get("id", "")
+            if ds_id:
+                ds = client.data_sources.retrieve(data_source_id=ds_id)
+                existing = set(ds.get("schema", {}).keys())
+                if _REQUIRED_DB_PROPERTIES.issubset(existing):
+                    return db_id
+                print(f"Database {db_id} missing properties. Repairing...")
+                _apply_data_source_schema(client, ds_id, existing)
+                print(f"Database {db_id} repaired.")
+            return db_id
+        except Exception:
+            print(f"Database {db_id} not accessible. Creating new one...")
+
+    parent_page_id = notion_cfg.get("remy_sources_page") or notion_cfg.get("remy_main_page")
+    if not parent_page_id:
+        print("ERROR: no remy_sources_page or remy_main_page in notion-config.md")
+        sys.exit(1)
+
+    db = client.databases.create(
+        parent={"type": "page_id", "page_id": parent_page_id},
+        title=[{"type": "text", "text": {"content": "REMY Meal History"}}],
+    )
+    new_id = db["id"]
+    ds_id = (db.get("data_sources") or [{}])[0].get("id", "")
+    if ds_id:
+        _apply_data_source_schema(client, ds_id, {"Name"})
+    print(f"Created REMY Meal History database: {new_id}")
+    _update_notion_config("meal_database_id", new_id)
+    return new_id
 
 
 # ── Data loading ───────────────────────────────────────────────────────────────
@@ -400,7 +491,9 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
     if not start_date:
         today = date.today()
         days_ahead = (7 - today.weekday()) % 7 or 7
-        start_date = (today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+        start_date = _monday_of_week(today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+    else:
+        start_date = _monday_of_week(datetime.strptime(start_date, "%Y-%m-%d").date()).strftime("%Y-%m-%d")
 
     eating_out_days = _normalize_days(eating_out)
     busy_days = _normalize_days(busy_nights)
@@ -502,7 +595,8 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
             "starch": starch,
             "side": veggie,
             "effort": selected.get("effort", ""),
-            "cook_time": selected.get("total_time") or selected.get("cook_time", ""),
+            "cook_time": selected.get("cook_time", ""),
+            "total_time": selected.get("total_time", "") or selected.get("cook_time", ""),
             "thaw": thaw,
             "rice_starch": rice_starch,
             "ingredients": selected.get("ingredients", []),
@@ -513,6 +607,94 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
 
 
 # ── Grocery list ───────────────────────────────────────────────────────────────
+
+_GROCERY_SECTIONS = [
+    "Produce", "Meat & Seafood", "Dairy & Refrigerated", "Frozen",
+    "Bakery & Deli", "Pantry & Dry Goods", "Oils & Spices (Check Pantry)",
+]
+
+
+def _llm_consolidate_grocery(raw_items, already_have=None):
+    """Call Opus to consolidate ingredients into purchase-sized grocery items.
+    `already_have` is a list of item names Drew already buys as staples or keeps on hand.
+    Returns {'sections': {...}, 'substitution_notes': [...]} or None on failure."""
+    if not raw_items:
+        return {"sections": {s: [] for s in _GROCERY_SECTIONS}, "substitution_notes": []}
+    already_have = already_have or []
+    try:
+        from anthropic import Anthropic
+    except ImportError:
+        print("WARN: anthropic SDK not installed. Run: python -m pip install anthropic")
+        return None
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("WARN: ANTHROPIC_API_KEY not set in .env.personal. Falling back to heuristic.")
+        return None
+
+    sections_str = ", ".join(f'"{s}"' for s in _GROCERY_SECTIONS)
+    prompt = f"""You are compiling a weekly grocery shopping list for Drew's family.
+
+Below is the raw list of dinner ingredients across this week. Your job:
+
+1. CONSOLIDATE duplicates across meals. Sum quantities of the same ingredient. Example: "2 tbsp tomato paste" + "3 tbsp tomato paste" becomes one line.
+
+2. CONVERT recipe quantities to purchasable quantities. Recipes call for specific amounts, but the grocery store sells fixed package sizes. Translate. Examples:
+   - 5 tbsp tomato paste -> "1 can (6 oz) tomato paste"
+   - 1/2 cup coconut milk -> "1 can (13.5 oz) coconut milk"
+   - 1 lb ground beef -> "1 lb ground beef" (already purchase-sized)
+   - 3 tbsp soy sauce -> "1 small bottle soy sauce (check pantry)"
+   - 2 lemons -> "2 lemons"
+   - 1 bunch cilantro -> "1 bunch cilantro"
+   - 4 oz cream cheese -> "1 block (8 oz) cream cheese"
+
+3. CATEGORIZE each consolidated item into one of these sections (use exact section names):
+   {sections_str}
+
+4. FLAG dietary substitutions for Drew's wife. Wife is gluten-free (use King Arthur GF 1:1 for wheat flour, GF pasta for pasta, GF panko/breadcrumbs), dairy-sensitive (avoid liquid dairy except butter; sub coconut or oat alternatives), and almond-allergic. When an item needs a sub, append " [GF substitute for wife]" or " [dairy-free substitute for wife]" to the item string AND add a corresponding line to substitution_notes shaped "MealName: original ingredient - swap instruction".
+
+5. USE COMMON SENSE on quantities. If a recipe needs a small amount of an oil, vinegar, or pantry sauce, assume Drew probably has it; append "(check pantry)". Buy the smallest package of fresh herbs only used once.
+
+6. DO NOT DUPLICATE STAPLES. Drew already buys these every week as weekly staples or keeps them always on hand. OMIT them entirely from your output. Do not add a separate line for any of these, even if a recipe calls for them. Drew has plenty.
+
+Already-have list (do not duplicate any of these):
+{json.dumps(already_have, indent=2)}
+
+Raw ingredient list (may have cross-meal duplicates):
+{json.dumps(raw_items, indent=2)}
+
+Return ONLY a JSON object, no preamble, no markdown fences, matching this exact shape:
+{{
+  "sections": {{
+    "Produce": ["item 1", "item 2"],
+    "Meat & Seafood": [],
+    "Dairy & Refrigerated": [],
+    "Frozen": [],
+    "Bakery & Deli": [],
+    "Pantry & Dry Goods": [],
+    "Oils & Spices (Check Pantry)": []
+  }},
+  "substitution_notes": ["Meal Name: ingredient - swap instruction"]
+}}
+"""
+    try:
+        client = Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model="claude-opus-4-7",
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text, flags=re.MULTILINE).strip()
+        data = json.loads(text)
+        secs = {s: list(data.get("sections", {}).get(s, [])) for s in _GROCERY_SECTIONS}
+        notes = list(data.get("substitution_notes", []))
+        return {"sections": secs, "substitution_notes": notes}
+    except Exception as e:
+        print(f"WARN: Opus grocery consolidation failed ({e}). Falling back to heuristic.")
+        return None
+
 
 def build_grocery_list(plan, pantry):
     aoh_keys = set()
@@ -535,6 +717,7 @@ def build_grocery_list(plan, pantry):
         "Oils & Spices (Check Pantry)": [],
     }
     meal_names, sub_notes, starch_adds = [], [], []
+    raw_items = []
     seen_items = set()
     gf_pasta_needed = False
 
@@ -577,9 +760,29 @@ def build_grocery_list(plan, pantry):
                 continue
             seen_items.add(dedup_key)
 
-            display = " ".join(filter(None, [
-                ing.get("amount", ""), ing.get("unit", ""), ing.get("item", "")
-            ])).strip()
+            raw_items.append({
+                "meal": day.get("meal", ""),
+                "item": ing.get("item", ""),
+                "amount": ing.get("amount", ""),
+                "unit": ing.get("unit", ""),
+            })
+
+    already_have = []
+    for items in pantry.get("weekly_staples", {}).values():
+        if isinstance(items, list):
+            already_have.extend(items)
+    for group in pantry.get("always_on_hand", {}).values():
+        if isinstance(group, list):
+            already_have.extend(group)
+
+    llm_result = _llm_consolidate_grocery(raw_items, already_have=already_have)
+    if llm_result is not None:
+        sections = llm_result["sections"]
+        sub_notes = llm_result["substitution_notes"]
+    else:
+        for raw in raw_items:
+            item_str = raw["item"].lower().strip()
+            display = " ".join(filter(None, [raw["amount"], raw["unit"], raw["item"]])).strip()
 
             gluten_flag = any(k in item_str for k in ["flour", "breadcrumb", "panko"])
             dairy_flag = (
@@ -588,13 +791,12 @@ def build_grocery_list(plan, pantry):
                 and "coconut" not in item_str
                 and "oat" not in item_str
             )
-
             if gluten_flag:
                 display += " [GF substitute for wife]"
-                sub_notes.append(f"{day.get('meal')}: {ing.get('item')} - use King Arthur GF 1:1")
+                sub_notes.append(f"{raw['meal']}: {raw['item']} - use King Arthur GF 1:1")
             if dairy_flag:
                 display += " [dairy note for wife]"
-                sub_notes.append(f"{day.get('meal')}: {ing.get('item')} - use dairy-free alternative")
+                sub_notes.append(f"{raw['meal']}: {raw['item']} - use dairy-free alternative")
 
             is_dried_herb = "dried" in item_str and any(k in item_str for k in produce_kw)
             if any(k in item_str for k in spice_kw) or is_dried_herb:
@@ -664,38 +866,60 @@ def save_history(plan):
 
 def push_plan(plan, notion_cfg):
     client = _notion()
-    meal_pages = notion_cfg.get("meal_pages", {})
+    db_id = _get_or_create_database(client, notion_cfg)
+
+    week_of = plan.get("week_of", "")
 
     for day_data in plan.get("days", []):
         day = day_data.get("day", "")
         meal = day_data.get("meal", "")
-        cook_time = day_data.get("cook_time", "")
+        protein = day_data.get("protein", "")
+        starch = day_data.get("starch") or ""
+        effort = day_data.get("effort", "")
+        cook_time = day_data.get("cook_time", "") or ""
+        total_time = day_data.get("total_time", "") or ""
         thaw = day_data.get("thaw", [])
-        starch = day_data.get("starch")
         side = day_data.get("side")
         ingredients = day_data.get("ingredients", [])
         instructions_raw = day_data.get("instructions_raw", [])
         rice_starch = day_data.get("rice_starch")
-
-        page_id = meal_pages.get(day)
-        if not page_id:
-            print(f"  WARNING: no page_id for {day}, skipping")
-            continue
+        protein_group = PROTEIN_GROUPS.get(protein, "")
 
         instructions = _enrich_instructions(ingredients, instructions_raw)
-        _clear_page(client, page_id)
-        client.pages.update(page_id=page_id, properties={"title": {"title": _rt(meal)}})
+
+        props = {
+            "Meal Name": {"title": _rt(meal)},
+            "Week Of": {"date": {"start": week_of}},
+        }
+        if protein:
+            props["Protein"] = {"select": {"name": protein}}
+        if protein_group:
+            props["Protein Group"] = {"select": {"name": protein_group}}
+        if effort:
+            props["Effort"] = {"select": {"name": effort}}
+        if starch:
+            props["Starch"] = {"rich_text": _rt(starch)}
+        if cook_time:
+            props["Cook Time"] = {"rich_text": _rt(cook_time)}
+        if total_time:
+            props["Total Time"] = {"rich_text": _rt(total_time)}
+        if side:
+            props["Vegetable"] = {"rich_text": _rt(side)}
+
+        page = client.pages.create(
+            parent={"database_id": db_id},
+            properties=props,
+        )
+        page_id = page["id"]
 
         blocks = [_h2(meal)]
         sides_parts = [s for s in [starch, side] if s]
         if sides_parts:
             blocks.append(_para("Sides: " + " + ".join(sides_parts)))
-        if thaw:
-            blocks.append(_callout("Thaw from freezer:  " + "  •  ".join(thaw), "❄️"))
         if rice_starch:
             blocks.append(_callout(f"Pre-make rice: {rice_starch}", "🍚"))
-        if cook_time:
-            blocks.append(_para(f"Total time: {cook_time}"))
+        if total_time:
+            blocks.append(_para(f"Total time: {total_time}"))
 
         blocks.append(_divider())
         blocks.append(_h3("Ingredients"))
@@ -719,23 +943,103 @@ def push_plan(plan, notion_cfg):
 
 # ── Notion push: grocery list ──────────────────────────────────────────────────
 
+def _get_or_create_grocery_database(client, notion_cfg) -> str:
+    db_id = notion_cfg.get("grocery_database_id", "")
+    if db_id:
+        try:
+            client.databases.retrieve(database_id=db_id)
+            return db_id
+        except Exception:
+            print(f"Grocery database {db_id} not accessible. Creating new one...")
+
+    parent_page_id = notion_cfg.get("remy_sources_page") or notion_cfg.get("remy_main_page")
+    if not parent_page_id:
+        print("ERROR: no remy_sources_page or remy_main_page in notion-config.md")
+        sys.exit(1)
+
+    db = client.databases.create(
+        parent={"type": "page_id", "page_id": parent_page_id},
+        title=[{"type": "text", "text": {"content": "REMY Grocery Lists"}}],
+    )
+    new_id = db["id"]
+    ds_id = (db.get("data_sources") or [{}])[0].get("id", "")
+    if ds_id:
+        client.data_sources.update(ds_id, properties={"Week Of": {"date": {}}})
+    print(f"Created REMY Grocery Lists database: {new_id}")
+    _update_notion_config("grocery_database_id", new_id)
+    return new_id
+
+
+_GROCERY_EMOJIS = {
+    "Produce": "🥦", "Meat & Seafood": "🥩", "Dairy & Refrigerated": "🥛",
+    "Frozen": "❄️", "Bakery & Deli": "🍞", "Pantry & Dry Goods": "🫙",
+    "Oils & Spices (Check Pantry)": "🧂",
+}
+
+
+def _save_grocery_local(grocery_data):
+    week_of = grocery_data.get("week_of", "")
+    meals = grocery_data.get("meals_this_week", [])
+    sections = grocery_data.get("sections", {})
+    sub_notes = grocery_data.get("substitution_notes", [])
+
+    grocery_dir = WIKI_FOOD / "grocery-lists"
+    grocery_dir.mkdir(parents=True, exist_ok=True)
+    path = grocery_dir / f"{week_of}.md"
+
+    lines = [
+        "---",
+        f"week_of: {week_of}",
+        f"generated: {datetime.now().strftime('%Y-%m-%d')}",
+        "---",
+        "",
+        f"# Grocery List - Week of {week_of}",
+        "",
+        "## This Week's Meals",
+        "",
+    ]
+    for meal in meals:
+        lines.append(f"- {meal}")
+    lines.append("")
+
+    for section_name, items in sections.items():
+        if not items:
+            continue
+        emoji = _GROCERY_EMOJIS.get(section_name, "")
+        label = f"{emoji} {section_name}" if emoji else section_name
+        lines.append(f"## {label}")
+        lines.append("")
+        for item in items:
+            lines.append(f"- [ ] {item}")
+        lines.append("")
+
+    if sub_notes:
+        lines.append("## Allergy Substitutions (Wife)")
+        lines.append("")
+        for note in sub_notes:
+            lines.append(f"- {note}")
+
+    path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Grocery list saved locally: {path}")
+
+
 def push_grocery(grocery_data, notion_cfg):
     client = _notion()
-    page_id = notion_cfg.get("grocery_list_page")
-    if not page_id:
-        print("ERROR: no grocery_list_page in notion-config.md")
-        sys.exit(1)
+    db_id = _get_or_create_grocery_database(client, notion_cfg)
 
     week_of = grocery_data.get("week_of", "")
     meals = grocery_data.get("meals_this_week", [])
     sections = grocery_data.get("sections", {})
     sub_notes = grocery_data.get("substitution_notes", [])
 
-    _clear_page(client, page_id)
-    client.pages.update(
-        page_id=page_id,
-        properties={"title": {"title": _rt(f"Week of {week_of}")}}
+    page = client.pages.create(
+        parent={"database_id": db_id},
+        properties={
+            "Name": {"title": _rt(f"Week of {week_of}")},
+            "Week Of": {"date": {"start": week_of}},
+        },
     )
+    page_id = page["id"]
 
     blocks = [
         _h2(f"Grocery List - Week of {week_of}"),
@@ -747,15 +1051,10 @@ def push_grocery(grocery_data, notion_cfg):
         blocks.append(_bullet(meal))
     blocks.append(_divider())
 
-    emojis = {
-        "Produce": "🥦", "Meat & Seafood": "🥩", "Dairy & Refrigerated": "🥛",
-        "Frozen": "❄️", "Bakery & Deli": "🍞", "Pantry & Dry Goods": "🫙",
-        "Oils & Spices (Check Pantry)": "🧂",
-    }
     for section_name, items in sections.items():
         if not items:
             continue
-        emoji = emojis.get(section_name, "")
+        emoji = _GROCERY_EMOJIS.get(section_name, "")
         label = f"{emoji}  {section_name}" if emoji else section_name
         blocks.append(_h3(label))
         for item in items:
@@ -768,6 +1067,7 @@ def push_grocery(grocery_data, notion_cfg):
             blocks.append(_bullet(note))
 
     _append_blocks(client, page_id, blocks)
+    _save_grocery_local(grocery_data)
     print(f"Grocery list pushed to Notion: week of {week_of}")
 
 
