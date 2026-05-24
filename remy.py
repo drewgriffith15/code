@@ -346,7 +346,7 @@ def _load_md_json(filename: str) -> dict:
 
 
 def _load_history() -> list:
-    path = WIKI_FOOD / "logs" / "meal-history.json"
+    path = WIKI_FOOD / "meal-plans" / "meal-history.json"
     if not path.exists():
         return []
     try:
@@ -853,7 +853,7 @@ def save_history(plan):
         "confirmed_at": datetime.now().isoformat(),
         "meals": meals,
     }
-    history_path = WIKI_FOOD / "logs" / "meal-history.json"
+    history_path = WIKI_FOOD / "meal-plans" / "meal-history.json"
     history = _load_history()
     history.append(entry)
     history_path.parent.mkdir(parents=True, exist_ok=True)
