@@ -418,6 +418,9 @@ def push_outline_to_notion(outline_path: Path, title: str, scripture: str, full_
         properties=properties,
     )
 
+    # Append "OUTLINE" placeholder at bottom (will be replaced by theo-push with final draft)
+    _append_blocks(page["id"], [{"type": "paragraph", "paragraph": {"rich_text": [_rich_text("OUTLINE")]}}])
+
     return page["id"]
 
 
