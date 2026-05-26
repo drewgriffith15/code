@@ -191,78 +191,72 @@ def _update_notion_config(key: str, value: str):
     print(f"notion-config.md updated: {key} = {value}")
 
 
-_PROTEIN_COLORS = {
-    "chicken": "orange", "beef": "red", "pork": "brown",
-    "turkey": "yellow", "seafood": "blue",
-}
+def _hub_page_id(notion_cfg) -> str:
+    hub = notion_cfg.get("remy_main_page")
+    if not hub:
+        print("ERROR: no remy_main_page in notion-config.md")
+        sys.exit(1)
+    return hub
 
 
-_REQUIRED_DB_PROPERTIES = {"Meal Name", "Week Of", "Protein", "Protein Group", "Effort", "Starch", "Cook Time", "Total Time", "Vegetable"}
-
-
-def _apply_data_source_schema(client, ds_id: str, existing: set):
-    protein_opts = [
-        {"name": p, "color": _PROTEIN_COLORS.get(PROTEIN_GROUPS[p], "default")}
-        for p in PROTEIN_GROUPS
-    ]
-    group_opts = [
-        {"name": g, "color": _PROTEIN_COLORS.get(g, "default")}
-        for g in dict.fromkeys(PROTEIN_GROUPS.values())
-    ]
-    props = {
-        "Week Of": {"date": {}},
-        "Protein": {"select": {"options": protein_opts}},
-        "Protein Group": {"select": {"options": group_opts}},
-        "Effort": {"select": {"options": [
-            {"name": "Low", "color": "green"},
-            {"name": "Medium", "color": "yellow"},
-            {"name": "High", "color": "red"},
-        ]}},
-        "Starch": {"rich_text": {}},
-        "Cook Time": {"rich_text": {}},
-        "Total Time": {"rich_text": {}},
-        "Vegetable": {"rich_text": {}},
-    }
-    if "Name" in existing and "Meal Name" not in existing:
-        props["Name"] = {"name": "Meal Name"}
-    client.data_sources.update(ds_id, properties=props)
-
-
-def _get_or_create_database(client, notion_cfg) -> str:
-    db_id = notion_cfg.get("meal_database_id", "")
-
-    if db_id:
-        try:
-            db = client.databases.retrieve(database_id=db_id)
-            ds_id = (db.get("data_sources") or [{}])[0].get("id", "")
-            if ds_id:
-                ds = client.data_sources.retrieve(data_source_id=ds_id)
-                existing = set(ds.get("schema", {}).keys())
-                if _REQUIRED_DB_PROPERTIES.issubset(existing):
-                    return db_id
-                print(f"Database {db_id} missing properties. Repairing...")
-                _apply_data_source_schema(client, ds_id, existing)
-                print(f"Database {db_id} repaired.")
-            return db_id
-        except Exception:
-            print(f"Database {db_id} not accessible. Creating new one...")
-
-    parent_page_id = notion_cfg.get("remy_sources_page") or notion_cfg.get("remy_main_page")
-    if not parent_page_id:
+def _content_parent_id(notion_cfg) -> str:
+    parent = notion_cfg.get("remy_sources_page") or notion_cfg.get("remy_main_page")
+    if not parent:
         print("ERROR: no remy_sources_page or remy_main_page in notion-config.md")
         sys.exit(1)
+    return parent
 
-    db = client.databases.create(
+
+def _description_block_id(client, hub_page_id):
+    resp = client.blocks.children.list(block_id=hub_page_id)
+    for b in resp.get("results", []):
+        if b.get("type") == "paragraph":
+            return b["id"]
+    return None
+
+
+def _toggle_heading(text, children):
+    return {
+        "object": "block",
+        "type": "heading_2",
+        "heading_2": {
+            "rich_text": _rt(text),
+            "is_toggleable": True,
+            "children": children,
+        },
+    }
+
+
+def _toggle_block(text, children):
+    return {
+        "object": "block",
+        "type": "toggle",
+        "toggle": {"rich_text": _rt(text), "children": children},
+    }
+
+
+def _bullet_with_link(prefix, page_id, page_title):
+    return {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+            "rich_text": [
+                {"type": "text", "text": {"content": prefix}},
+                {"type": "mention", "mention": {"type": "page", "page": {"id": page_id}}},
+            ],
+        },
+    }
+
+
+def _create_child_page(client, parent_page_id, title, blocks):
+    page = client.pages.create(
         parent={"type": "page_id", "page_id": parent_page_id},
-        title=[{"type": "text", "text": {"content": "REMY Meal History"}}],
+        properties={"title": {"title": _rt(title)}},
     )
-    new_id = db["id"]
-    ds_id = (db.get("data_sources") or [{}])[0].get("id", "")
-    if ds_id:
-        _apply_data_source_schema(client, ds_id, {"Name"})
-    print(f"Created REMY Meal History database: {new_id}")
-    _update_notion_config("meal_database_id", new_id)
-    return new_id
+    page_id = page["id"]
+    if blocks:
+        _append_blocks(client, page_id, blocks)
+    return page_id
 
 
 # ── Data loading ───────────────────────────────────────────────────────────────
@@ -273,7 +267,7 @@ def _load_recipes() -> list:
     for path in sorted(recipes_dir.glob("*.md")):
         text = path.read_text(encoding="utf-8")
         fm = _parse_frontmatter(text)
-        tags = fm.get("tags", [])
+        tags = fm.get("tags") or []
         if isinstance(tags, str):
             tags = [tags]
         if "remy" not in tags:
@@ -864,111 +858,60 @@ def save_history(plan):
 
 # ── Notion push: meal plan ─────────────────────────────────────────────────────
 
+def _build_meal_blocks(day_data):
+    meal = day_data.get("meal", "")
+    starch = day_data.get("starch") or ""
+    side = day_data.get("side")
+    total_time = day_data.get("total_time", "") or ""
+    rice_starch = day_data.get("rice_starch")
+    ingredients = day_data.get("ingredients", [])
+    instructions_raw = day_data.get("instructions_raw", [])
+    instructions = _enrich_instructions(ingredients, instructions_raw)
+
+    blocks = [_h2(meal)]
+    sides_parts = [s for s in [starch, side] if s]
+    if sides_parts:
+        blocks.append(_para("Sides: " + " + ".join(sides_parts)))
+    if rice_starch:
+        blocks.append(_callout(f"Pre-make rice: {rice_starch}", "🍚"))
+    if total_time:
+        blocks.append(_para(f"Total time: {total_time}"))
+
+    blocks.append(_divider())
+    blocks.append(_h3("Ingredients"))
+    for ing in ingredients:
+        line = " ".join(filter(None, [
+            ing.get("amount", ""), ing.get("unit", ""), ing.get("item", "")
+        ])).strip()
+        if line:
+            blocks.append(_bullet(line))
+
+    blocks.append(_h3("Instructions"))
+    for step_text in instructions:
+        if step_text:
+            blocks.append(_numbered(step_text))
+    return blocks
+
+
 def push_plan(plan, notion_cfg):
     client = _notion()
-    db_id = _get_or_create_database(client, notion_cfg)
-
+    parent = _content_parent_id(notion_cfg)
     week_of = plan.get("week_of", "")
+    meal_pages = []
 
     for day_data in plan.get("days", []):
         day = day_data.get("day", "")
         meal = day_data.get("meal", "")
-        protein = day_data.get("protein", "")
-        starch = day_data.get("starch") or ""
-        effort = day_data.get("effort", "")
-        cook_time = day_data.get("cook_time", "") or ""
-        total_time = day_data.get("total_time", "") or ""
-        thaw = day_data.get("thaw", [])
-        side = day_data.get("side")
-        ingredients = day_data.get("ingredients", [])
-        instructions_raw = day_data.get("instructions_raw", [])
-        rice_starch = day_data.get("rice_starch")
-        protein_group = PROTEIN_GROUPS.get(protein, "")
-
-        instructions = _enrich_instructions(ingredients, instructions_raw)
-
-        props = {
-            "Meal Name": {"title": _rt(meal)},
-            "Week Of": {"date": {"start": week_of}},
-        }
-        if protein:
-            props["Protein"] = {"select": {"name": protein}}
-        if protein_group:
-            props["Protein Group"] = {"select": {"name": protein_group}}
-        if effort:
-            props["Effort"] = {"select": {"name": effort}}
-        if starch:
-            props["Starch"] = {"rich_text": _rt(starch)}
-        if cook_time:
-            props["Cook Time"] = {"rich_text": _rt(cook_time)}
-        if total_time:
-            props["Total Time"] = {"rich_text": _rt(total_time)}
-        if side:
-            props["Vegetable"] = {"rich_text": _rt(side)}
-
-        page = client.pages.create(
-            parent={"database_id": db_id},
-            properties=props,
-        )
-        page_id = page["id"]
-
-        blocks = [_h2(meal)]
-        sides_parts = [s for s in [starch, side] if s]
-        if sides_parts:
-            blocks.append(_para("Sides: " + " + ".join(sides_parts)))
-        if rice_starch:
-            blocks.append(_callout(f"Pre-make rice: {rice_starch}", "🍚"))
-        if total_time:
-            blocks.append(_para(f"Total time: {total_time}"))
-
-        blocks.append(_divider())
-        blocks.append(_h3("Ingredients"))
-        for ing in ingredients:
-            line = " ".join(filter(None, [
-                ing.get("amount", ""), ing.get("unit", ""), ing.get("item", "")
-            ])).strip()
-            if line:
-                blocks.append(_bullet(line))
-
-        blocks.append(_h3("Instructions"))
-        for step_text in instructions:
-            if step_text:
-                blocks.append(_numbered(step_text))
-
-        _append_blocks(client, page_id, blocks)
+        blocks = _build_meal_blocks(day_data)
+        page_id = _create_child_page(client, parent, meal, blocks)
+        meal_pages.append({"day": day, "meal": meal, "page_id": page_id})
         print(f"  Pushed: {day} - {meal}")
 
     print("Meal plan pushed to Notion.")
+    return meal_pages
 
 
 # ── Notion push: grocery list ──────────────────────────────────────────────────
-
-def _get_or_create_grocery_database(client, notion_cfg) -> str:
-    db_id = notion_cfg.get("grocery_database_id", "")
-    if db_id:
-        try:
-            client.databases.retrieve(database_id=db_id)
-            return db_id
-        except Exception:
-            print(f"Grocery database {db_id} not accessible. Creating new one...")
-
-    parent_page_id = notion_cfg.get("remy_sources_page") or notion_cfg.get("remy_main_page")
-    if not parent_page_id:
-        print("ERROR: no remy_sources_page or remy_main_page in notion-config.md")
-        sys.exit(1)
-
-    db = client.databases.create(
-        parent={"type": "page_id", "page_id": parent_page_id},
-        title=[{"type": "text", "text": {"content": "REMY Grocery Lists"}}],
-    )
-    new_id = db["id"]
-    ds_id = (db.get("data_sources") or [{}])[0].get("id", "")
-    if ds_id:
-        client.data_sources.update(ds_id, properties={"Week Of": {"date": {}}})
-    print(f"Created REMY Grocery Lists database: {new_id}")
-    _update_notion_config("grocery_database_id", new_id)
-    return new_id
-
 
 _GROCERY_EMOJIS = {
     "Produce": "🥦", "Meat & Seafood": "🥩", "Dairy & Refrigerated": "🥛",
@@ -1025,24 +968,14 @@ def _save_grocery_local(grocery_data):
 
 def push_grocery(grocery_data, notion_cfg):
     client = _notion()
-    db_id = _get_or_create_grocery_database(client, notion_cfg)
+    parent = _content_parent_id(notion_cfg)
 
     week_of = grocery_data.get("week_of", "")
     meals = grocery_data.get("meals_this_week", [])
     sections = grocery_data.get("sections", {})
     sub_notes = grocery_data.get("substitution_notes", [])
 
-    page = client.pages.create(
-        parent={"database_id": db_id},
-        properties={
-            "Name": {"title": _rt(f"Week of {week_of}")},
-            "Week Of": {"date": {"start": week_of}},
-        },
-    )
-    page_id = page["id"]
-
     blocks = [
-        _h2(f"Grocery List - Week of {week_of}"),
         _para(f"Generated {datetime.now().strftime('%B %d, %Y')}"),
         _divider(),
         _h3("This Week's Meals"),
@@ -1058,7 +991,7 @@ def push_grocery(grocery_data, notion_cfg):
         label = f"{emoji}  {section_name}" if emoji else section_name
         blocks.append(_h3(label))
         for item in items:
-            blocks.append(_bullet(item))
+            blocks.append({"object": "block", "type": "to_do", "to_do": {"rich_text": _rt(item), "checked": False}})
 
     if sub_notes:
         blocks.append(_divider())
@@ -1066,9 +999,49 @@ def push_grocery(grocery_data, notion_cfg):
         for note in sub_notes:
             blocks.append(_bullet(note))
 
-    _append_blocks(client, page_id, blocks)
+    title = f"Grocery List - Week of {week_of}"
+    page_id = _create_child_page(client, parent, title, blocks)
     _save_grocery_local(grocery_data)
     print(f"Grocery list pushed to Notion: week of {week_of}")
+    return page_id
+
+
+# ── Notion push: hub weekly toggle ─────────────────────────────────────────────
+
+def push_hub_week(notion_cfg, week_of, meal_pages, grocery_page_id):
+    client = _notion()
+    hub = _hub_page_id(notion_cfg)
+
+    grocery_bullet = {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+            "rich_text": [
+                {"type": "mention", "mention": {"type": "page", "page": {"id": grocery_page_id}}},
+            ],
+        },
+    }
+
+    day_bullets = []
+    for mp in meal_pages:
+        day_bullets.append({
+            "object": "block",
+            "type": "bulleted_list_item",
+            "bulleted_list_item": {
+                "rich_text": [
+                    {"type": "mention", "mention": {"type": "page", "page": {"id": mp["page_id"]}}},
+                ],
+            },
+        })
+
+    toggle = _toggle_heading(f"Week of {week_of}", [grocery_bullet] + day_bullets)
+
+    anchor = _description_block_id(client, hub)
+    if anchor:
+        client.blocks.children.append(block_id=hub, children=[toggle], after=anchor)
+    else:
+        client.blocks.children.append(block_id=hub, children=[toggle])
+    print(f"Hub updated: week of {week_of} toggle inserted at top.")
 
 
 # ── patch_starch ───────────────────────────────────────────────────────────────
@@ -1132,9 +1105,10 @@ def cmd_push(args):
     with open(args.file, encoding="utf-8") as f:
         plan = json.load(f)
     data = load_data()
-    push_plan(plan, data["notion_config"])
+    meal_pages = push_plan(plan, data["notion_config"])
     grocery = build_grocery_list(plan, data["pantry"])
-    push_grocery(grocery, data["notion_config"])
+    grocery_page_id = push_grocery(grocery, data["notion_config"])
+    push_hub_week(data["notion_config"], plan.get("week_of", ""), meal_pages, grocery_page_id)
     save_history(plan)
 
 
@@ -1142,9 +1116,10 @@ def cmd_full(args):
     plan = propose_plan(start_date=getattr(args, "date", None))
     _print_plan(plan)
     data = load_data()
-    push_plan(plan, data["notion_config"])
+    meal_pages = push_plan(plan, data["notion_config"])
     grocery = build_grocery_list(plan, data["pantry"])
-    push_grocery(grocery, data["notion_config"])
+    grocery_page_id = push_grocery(grocery, data["notion_config"])
+    push_hub_week(data["notion_config"], plan.get("week_of", ""), meal_pages, grocery_page_id)
     save_history(plan)
 
 
