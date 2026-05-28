@@ -48,6 +48,10 @@ def _current_season() -> str:
     return "spring-summer" if 3 <= month <= 8 else "fall-winter"
 
 
+def _monday_of_week(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
 # ── Markdown parsing ───────────────────────────────────────────────────────────
 
 def _parse_frontmatter(text: str) -> dict:
@@ -174,6 +178,87 @@ def _append_blocks(client, page_id, blocks):
         client.blocks.children.append(block_id=page_id, children=blocks[i:i + 100])
 
 
+def _update_notion_config(key: str, value: str):
+    path = WIKI_FOOD / "notion-config.md"
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    data = _parse_json_block(text)
+    data[key] = value
+    new_json = json.dumps(data, indent=2, ensure_ascii=False)
+    new_text = re.sub(r"```json\s*\n[\s\S]+?\n```", f"```json\n{new_json}\n```", text, count=1)
+    path.write_text(new_text, encoding="utf-8")
+    print(f"notion-config.md updated: {key} = {value}")
+
+
+def _hub_page_id(notion_cfg) -> str:
+    hub = notion_cfg.get("remy_main_page")
+    if not hub:
+        print("ERROR: no remy_main_page in notion-config.md")
+        sys.exit(1)
+    return hub
+
+
+def _content_parent_id(notion_cfg) -> str:
+    parent = notion_cfg.get("remy_sources_page") or notion_cfg.get("remy_main_page")
+    if not parent:
+        print("ERROR: no remy_sources_page or remy_main_page in notion-config.md")
+        sys.exit(1)
+    return parent
+
+
+def _description_block_id(client, hub_page_id):
+    resp = client.blocks.children.list(block_id=hub_page_id)
+    for b in resp.get("results", []):
+        if b.get("type") == "paragraph":
+            return b["id"]
+    return None
+
+
+def _toggle_heading(text, children):
+    return {
+        "object": "block",
+        "type": "heading_2",
+        "heading_2": {
+            "rich_text": _rt(text),
+            "is_toggleable": True,
+            "children": children,
+        },
+    }
+
+
+def _toggle_block(text, children):
+    return {
+        "object": "block",
+        "type": "toggle",
+        "toggle": {"rich_text": _rt(text), "children": children},
+    }
+
+
+def _bullet_with_link(prefix, page_id, page_title):
+    return {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+            "rich_text": [
+                {"type": "text", "text": {"content": prefix}},
+                {"type": "mention", "mention": {"type": "page", "page": {"id": page_id}}},
+            ],
+        },
+    }
+
+
+def _create_child_page(client, parent_page_id, title, blocks):
+    page = client.pages.create(
+        parent={"type": "page_id", "page_id": parent_page_id},
+        properties={"title": {"title": _rt(title)}},
+    )
+    page_id = page["id"]
+    if blocks:
+        _append_blocks(client, page_id, blocks)
+    return page_id
+
+
 # ── Data loading ───────────────────────────────────────────────────────────────
 
 def _load_recipes() -> list:
@@ -182,7 +267,7 @@ def _load_recipes() -> list:
     for path in sorted(recipes_dir.glob("*.md")):
         text = path.read_text(encoding="utf-8")
         fm = _parse_frontmatter(text)
-        tags = fm.get("tags", [])
+        tags = fm.get("tags") or []
         if isinstance(tags, str):
             tags = [tags]
         if "remy" not in tags:
@@ -255,7 +340,7 @@ def _load_md_json(filename: str) -> dict:
 
 
 def _load_history() -> list:
-    path = WIKI_FOOD / "logs" / "meal-history.json"
+    path = WIKI_FOOD / "meal-plans" / "meal-history.json"
     if not path.exists():
         return []
     try:
@@ -400,7 +485,9 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
     if not start_date:
         today = date.today()
         days_ahead = (7 - today.weekday()) % 7 or 7
-        start_date = (today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+        start_date = _monday_of_week(today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+    else:
+        start_date = _monday_of_week(datetime.strptime(start_date, "%Y-%m-%d").date()).strftime("%Y-%m-%d")
 
     eating_out_days = _normalize_days(eating_out)
     busy_days = _normalize_days(busy_nights)
@@ -502,7 +589,8 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
             "starch": starch,
             "side": veggie,
             "effort": selected.get("effort", ""),
-            "cook_time": selected.get("total_time") or selected.get("cook_time", ""),
+            "cook_time": selected.get("cook_time", ""),
+            "total_time": selected.get("total_time", "") or selected.get("cook_time", ""),
             "thaw": thaw,
             "rice_starch": rice_starch,
             "ingredients": selected.get("ingredients", []),
@@ -513,6 +601,94 @@ def propose_plan(start_date=None, busy_nights=None, eating_out=None, cravings=No
 
 
 # ── Grocery list ───────────────────────────────────────────────────────────────
+
+_GROCERY_SECTIONS = [
+    "Produce", "Meat & Seafood", "Dairy & Refrigerated", "Frozen",
+    "Bakery & Deli", "Pantry & Dry Goods", "Oils & Spices (Check Pantry)",
+]
+
+
+def _llm_consolidate_grocery(raw_items, already_have=None):
+    """Call Opus to consolidate ingredients into purchase-sized grocery items.
+    `already_have` is a list of item names Drew already buys as staples or keeps on hand.
+    Returns {'sections': {...}, 'substitution_notes': [...]} or None on failure."""
+    if not raw_items:
+        return {"sections": {s: [] for s in _GROCERY_SECTIONS}, "substitution_notes": []}
+    already_have = already_have or []
+    try:
+        from anthropic import Anthropic
+    except ImportError:
+        print("WARN: anthropic SDK not installed. Run: python -m pip install anthropic")
+        return None
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("WARN: ANTHROPIC_API_KEY not set in .env.personal. Falling back to heuristic.")
+        return None
+
+    sections_str = ", ".join(f'"{s}"' for s in _GROCERY_SECTIONS)
+    prompt = f"""You are compiling a weekly grocery shopping list for Drew's family.
+
+Below is the raw list of dinner ingredients across this week. Your job:
+
+1. CONSOLIDATE duplicates across meals. Sum quantities of the same ingredient. Example: "2 tbsp tomato paste" + "3 tbsp tomato paste" becomes one line.
+
+2. CONVERT recipe quantities to purchasable quantities. Recipes call for specific amounts, but the grocery store sells fixed package sizes. Translate. Examples:
+   - 5 tbsp tomato paste -> "1 can (6 oz) tomato paste"
+   - 1/2 cup coconut milk -> "1 can (13.5 oz) coconut milk"
+   - 1 lb ground beef -> "1 lb ground beef" (already purchase-sized)
+   - 3 tbsp soy sauce -> "1 small bottle soy sauce (check pantry)"
+   - 2 lemons -> "2 lemons"
+   - 1 bunch cilantro -> "1 bunch cilantro"
+   - 4 oz cream cheese -> "1 block (8 oz) cream cheese"
+
+3. CATEGORIZE each consolidated item into one of these sections (use exact section names):
+   {sections_str}
+
+4. FLAG dietary substitutions for Drew's wife. Wife is gluten-free (use King Arthur GF 1:1 for wheat flour, GF pasta for pasta, GF panko/breadcrumbs), dairy-sensitive (avoid liquid dairy except butter; sub coconut or oat alternatives), and almond-allergic. When an item needs a sub, append " [GF substitute for wife]" or " [dairy-free substitute for wife]" to the item string AND add a corresponding line to substitution_notes shaped "MealName: original ingredient - swap instruction".
+
+5. USE COMMON SENSE on quantities. If a recipe needs a small amount of an oil, vinegar, or pantry sauce, assume Drew probably has it; append "(check pantry)". Buy the smallest package of fresh herbs only used once.
+
+6. DO NOT DUPLICATE STAPLES. Drew already buys these every week as weekly staples or keeps them always on hand. OMIT them entirely from your output. Do not add a separate line for any of these, even if a recipe calls for them. Drew has plenty.
+
+Already-have list (do not duplicate any of these):
+{json.dumps(already_have, indent=2)}
+
+Raw ingredient list (may have cross-meal duplicates):
+{json.dumps(raw_items, indent=2)}
+
+Return ONLY a JSON object, no preamble, no markdown fences, matching this exact shape:
+{{
+  "sections": {{
+    "Produce": ["item 1", "item 2"],
+    "Meat & Seafood": [],
+    "Dairy & Refrigerated": [],
+    "Frozen": [],
+    "Bakery & Deli": [],
+    "Pantry & Dry Goods": [],
+    "Oils & Spices (Check Pantry)": []
+  }},
+  "substitution_notes": ["Meal Name: ingredient - swap instruction"]
+}}
+"""
+    try:
+        client = Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model="claude-opus-4-7",
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = resp.content[0].text.strip()
+        if text.startswith("```"):
+            text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text, flags=re.MULTILINE).strip()
+        data = json.loads(text)
+        secs = {s: list(data.get("sections", {}).get(s, [])) for s in _GROCERY_SECTIONS}
+        notes = list(data.get("substitution_notes", []))
+        return {"sections": secs, "substitution_notes": notes}
+    except Exception as e:
+        print(f"WARN: Opus grocery consolidation failed ({e}). Falling back to heuristic.")
+        return None
+
 
 def build_grocery_list(plan, pantry):
     aoh_keys = set()
@@ -535,6 +711,7 @@ def build_grocery_list(plan, pantry):
         "Oils & Spices (Check Pantry)": [],
     }
     meal_names, sub_notes, starch_adds = [], [], []
+    raw_items = []
     seen_items = set()
     gf_pasta_needed = False
 
@@ -577,9 +754,29 @@ def build_grocery_list(plan, pantry):
                 continue
             seen_items.add(dedup_key)
 
-            display = " ".join(filter(None, [
-                ing.get("amount", ""), ing.get("unit", ""), ing.get("item", "")
-            ])).strip()
+            raw_items.append({
+                "meal": day.get("meal", ""),
+                "item": ing.get("item", ""),
+                "amount": ing.get("amount", ""),
+                "unit": ing.get("unit", ""),
+            })
+
+    already_have = []
+    for items in pantry.get("weekly_staples", {}).values():
+        if isinstance(items, list):
+            already_have.extend(items)
+    for group in pantry.get("always_on_hand", {}).values():
+        if isinstance(group, list):
+            already_have.extend(group)
+
+    llm_result = _llm_consolidate_grocery(raw_items, already_have=already_have)
+    if llm_result is not None:
+        sections = llm_result["sections"]
+        sub_notes = llm_result["substitution_notes"]
+    else:
+        for raw in raw_items:
+            item_str = raw["item"].lower().strip()
+            display = " ".join(filter(None, [raw["amount"], raw["unit"], raw["item"]])).strip()
 
             gluten_flag = any(k in item_str for k in ["flour", "breadcrumb", "panko"])
             dairy_flag = (
@@ -588,13 +785,12 @@ def build_grocery_list(plan, pantry):
                 and "coconut" not in item_str
                 and "oat" not in item_str
             )
-
             if gluten_flag:
                 display += " [GF substitute for wife]"
-                sub_notes.append(f"{day.get('meal')}: {ing.get('item')} - use King Arthur GF 1:1")
+                sub_notes.append(f"{raw['meal']}: {raw['item']} - use King Arthur GF 1:1")
             if dairy_flag:
                 display += " [dairy note for wife]"
-                sub_notes.append(f"{day.get('meal')}: {ing.get('item')} - use dairy-free alternative")
+                sub_notes.append(f"{raw['meal']}: {raw['item']} - use dairy-free alternative")
 
             is_dried_herb = "dried" in item_str and any(k in item_str for k in produce_kw)
             if any(k in item_str for k in spice_kw) or is_dried_herb:
@@ -651,7 +847,7 @@ def save_history(plan):
         "confirmed_at": datetime.now().isoformat(),
         "meals": meals,
     }
-    history_path = WIKI_FOOD / "logs" / "meal-history.json"
+    history_path = WIKI_FOOD / "meal-plans" / "meal-history.json"
     history = _load_history()
     history.append(entry)
     history_path.parent.mkdir(parents=True, exist_ok=True)
@@ -662,83 +858,124 @@ def save_history(plan):
 
 # ── Notion push: meal plan ─────────────────────────────────────────────────────
 
+def _build_meal_blocks(day_data):
+    meal = day_data.get("meal", "")
+    starch = day_data.get("starch") or ""
+    side = day_data.get("side")
+    total_time = day_data.get("total_time", "") or ""
+    rice_starch = day_data.get("rice_starch")
+    ingredients = day_data.get("ingredients", [])
+    instructions_raw = day_data.get("instructions_raw", [])
+    instructions = _enrich_instructions(ingredients, instructions_raw)
+
+    blocks = [_h2(meal)]
+    sides_parts = [s for s in [starch, side] if s]
+    if sides_parts:
+        blocks.append(_para("Sides: " + " + ".join(sides_parts)))
+    if rice_starch:
+        blocks.append(_callout(f"Pre-make rice: {rice_starch}", "🍚"))
+    if total_time:
+        blocks.append(_para(f"Total time: {total_time}"))
+
+    blocks.append(_divider())
+    blocks.append(_h3("Ingredients"))
+    for ing in ingredients:
+        line = " ".join(filter(None, [
+            ing.get("amount", ""), ing.get("unit", ""), ing.get("item", "")
+        ])).strip()
+        if line:
+            blocks.append(_bullet(line))
+
+    blocks.append(_h3("Instructions"))
+    for step_text in instructions:
+        if step_text:
+            blocks.append(_numbered(step_text))
+    return blocks
+
+
 def push_plan(plan, notion_cfg):
     client = _notion()
-    meal_pages = notion_cfg.get("meal_pages", {})
+    parent = _content_parent_id(notion_cfg)
+    week_of = plan.get("week_of", "")
+    meal_pages = []
 
     for day_data in plan.get("days", []):
         day = day_data.get("day", "")
         meal = day_data.get("meal", "")
-        cook_time = day_data.get("cook_time", "")
-        thaw = day_data.get("thaw", [])
-        starch = day_data.get("starch")
-        side = day_data.get("side")
-        ingredients = day_data.get("ingredients", [])
-        instructions_raw = day_data.get("instructions_raw", [])
-        rice_starch = day_data.get("rice_starch")
-
-        page_id = meal_pages.get(day)
-        if not page_id:
-            print(f"  WARNING: no page_id for {day}, skipping")
-            continue
-
-        instructions = _enrich_instructions(ingredients, instructions_raw)
-        _clear_page(client, page_id)
-        client.pages.update(page_id=page_id, properties={"title": {"title": _rt(meal)}})
-
-        blocks = [_h2(meal)]
-        sides_parts = [s for s in [starch, side] if s]
-        if sides_parts:
-            blocks.append(_para("Sides: " + " + ".join(sides_parts)))
-        if thaw:
-            blocks.append(_callout("Thaw from freezer:  " + "  •  ".join(thaw), "❄️"))
-        if rice_starch:
-            blocks.append(_callout(f"Pre-make rice: {rice_starch}", "🍚"))
-        if cook_time:
-            blocks.append(_para(f"Total time: {cook_time}"))
-
-        blocks.append(_divider())
-        blocks.append(_h3("Ingredients"))
-        for ing in ingredients:
-            line = " ".join(filter(None, [
-                ing.get("amount", ""), ing.get("unit", ""), ing.get("item", "")
-            ])).strip()
-            if line:
-                blocks.append(_bullet(line))
-
-        blocks.append(_h3("Instructions"))
-        for step_text in instructions:
-            if step_text:
-                blocks.append(_numbered(step_text))
-
-        _append_blocks(client, page_id, blocks)
+        blocks = _build_meal_blocks(day_data)
+        page_id = _create_child_page(client, parent, meal, blocks)
+        meal_pages.append({"day": day, "meal": meal, "page_id": page_id})
         print(f"  Pushed: {day} - {meal}")
 
     print("Meal plan pushed to Notion.")
+    return meal_pages
 
 
 # ── Notion push: grocery list ──────────────────────────────────────────────────
 
+_GROCERY_EMOJIS = {
+    "Produce": "🥦", "Meat & Seafood": "🥩", "Dairy & Refrigerated": "🥛",
+    "Frozen": "❄️", "Bakery & Deli": "🍞", "Pantry & Dry Goods": "🫙",
+    "Oils & Spices (Check Pantry)": "🧂",
+}
+
+
+def _save_grocery_local(grocery_data):
+    week_of = grocery_data.get("week_of", "")
+    meals = grocery_data.get("meals_this_week", [])
+    sections = grocery_data.get("sections", {})
+    sub_notes = grocery_data.get("substitution_notes", [])
+
+    grocery_dir = WIKI_FOOD / "grocery-lists"
+    grocery_dir.mkdir(parents=True, exist_ok=True)
+    path = grocery_dir / f"{week_of}.md"
+
+    lines = [
+        "---",
+        f"week_of: {week_of}",
+        f"generated: {datetime.now().strftime('%Y-%m-%d')}",
+        "---",
+        "",
+        f"# Grocery List - Week of {week_of}",
+        "",
+        "## This Week's Meals",
+        "",
+    ]
+    for meal in meals:
+        lines.append(f"- {meal}")
+    lines.append("")
+
+    for section_name, items in sections.items():
+        if not items:
+            continue
+        emoji = _GROCERY_EMOJIS.get(section_name, "")
+        label = f"{emoji} {section_name}" if emoji else section_name
+        lines.append(f"## {label}")
+        lines.append("")
+        for item in items:
+            lines.append(f"- [ ] {item}")
+        lines.append("")
+
+    if sub_notes:
+        lines.append("## Allergy Substitutions (Wife)")
+        lines.append("")
+        for note in sub_notes:
+            lines.append(f"- {note}")
+
+    path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Grocery list saved locally: {path}")
+
+
 def push_grocery(grocery_data, notion_cfg):
     client = _notion()
-    page_id = notion_cfg.get("grocery_list_page")
-    if not page_id:
-        print("ERROR: no grocery_list_page in notion-config.md")
-        sys.exit(1)
+    parent = _content_parent_id(notion_cfg)
 
     week_of = grocery_data.get("week_of", "")
     meals = grocery_data.get("meals_this_week", [])
     sections = grocery_data.get("sections", {})
     sub_notes = grocery_data.get("substitution_notes", [])
 
-    _clear_page(client, page_id)
-    client.pages.update(
-        page_id=page_id,
-        properties={"title": {"title": _rt(f"Week of {week_of}")}}
-    )
-
     blocks = [
-        _h2(f"Grocery List - Week of {week_of}"),
         _para(f"Generated {datetime.now().strftime('%B %d, %Y')}"),
         _divider(),
         _h3("This Week's Meals"),
@@ -747,19 +984,14 @@ def push_grocery(grocery_data, notion_cfg):
         blocks.append(_bullet(meal))
     blocks.append(_divider())
 
-    emojis = {
-        "Produce": "🥦", "Meat & Seafood": "🥩", "Dairy & Refrigerated": "🥛",
-        "Frozen": "❄️", "Bakery & Deli": "🍞", "Pantry & Dry Goods": "🫙",
-        "Oils & Spices (Check Pantry)": "🧂",
-    }
     for section_name, items in sections.items():
         if not items:
             continue
-        emoji = emojis.get(section_name, "")
+        emoji = _GROCERY_EMOJIS.get(section_name, "")
         label = f"{emoji}  {section_name}" if emoji else section_name
         blocks.append(_h3(label))
         for item in items:
-            blocks.append(_bullet(item))
+            blocks.append({"object": "block", "type": "to_do", "to_do": {"rich_text": _rt(item), "checked": False}})
 
     if sub_notes:
         blocks.append(_divider())
@@ -767,8 +999,49 @@ def push_grocery(grocery_data, notion_cfg):
         for note in sub_notes:
             blocks.append(_bullet(note))
 
-    _append_blocks(client, page_id, blocks)
+    title = f"Grocery List - Week of {week_of}"
+    page_id = _create_child_page(client, parent, title, blocks)
+    _save_grocery_local(grocery_data)
     print(f"Grocery list pushed to Notion: week of {week_of}")
+    return page_id
+
+
+# ── Notion push: hub weekly toggle ─────────────────────────────────────────────
+
+def push_hub_week(notion_cfg, week_of, meal_pages, grocery_page_id):
+    client = _notion()
+    hub = _hub_page_id(notion_cfg)
+
+    grocery_bullet = {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+            "rich_text": [
+                {"type": "mention", "mention": {"type": "page", "page": {"id": grocery_page_id}}},
+            ],
+        },
+    }
+
+    day_bullets = []
+    for mp in meal_pages:
+        day_bullets.append({
+            "object": "block",
+            "type": "bulleted_list_item",
+            "bulleted_list_item": {
+                "rich_text": [
+                    {"type": "mention", "mention": {"type": "page", "page": {"id": mp["page_id"]}}},
+                ],
+            },
+        })
+
+    toggle = _toggle_heading(f"Week of {week_of}", [grocery_bullet] + day_bullets)
+
+    anchor = _description_block_id(client, hub)
+    if anchor:
+        client.blocks.children.append(block_id=hub, children=[toggle], after=anchor)
+    else:
+        client.blocks.children.append(block_id=hub, children=[toggle])
+    print(f"Hub updated: week of {week_of} toggle inserted at top.")
 
 
 # ── patch_starch ───────────────────────────────────────────────────────────────
@@ -832,9 +1105,10 @@ def cmd_push(args):
     with open(args.file, encoding="utf-8") as f:
         plan = json.load(f)
     data = load_data()
-    push_plan(plan, data["notion_config"])
+    meal_pages = push_plan(plan, data["notion_config"])
     grocery = build_grocery_list(plan, data["pantry"])
-    push_grocery(grocery, data["notion_config"])
+    grocery_page_id = push_grocery(grocery, data["notion_config"])
+    push_hub_week(data["notion_config"], plan.get("week_of", ""), meal_pages, grocery_page_id)
     save_history(plan)
 
 
@@ -842,9 +1116,10 @@ def cmd_full(args):
     plan = propose_plan(start_date=getattr(args, "date", None))
     _print_plan(plan)
     data = load_data()
-    push_plan(plan, data["notion_config"])
+    meal_pages = push_plan(plan, data["notion_config"])
     grocery = build_grocery_list(plan, data["pantry"])
-    push_grocery(grocery, data["notion_config"])
+    grocery_page_id = push_grocery(grocery, data["notion_config"])
+    push_hub_week(data["notion_config"], plan.get("week_of", ""), meal_pages, grocery_page_id)
     save_history(plan)
 
 

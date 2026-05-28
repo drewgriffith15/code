@@ -347,6 +347,12 @@ def process_video(url: str, playlist_item_id: str = "", service=None) -> bool:
     return True
 
 
+def _fatal(msg: str) -> None:
+    print(msg)
+    input("\nPress Enter to close...")
+    sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="YouTube transcript fetch for Construct (writes to raw/)",
@@ -363,15 +369,13 @@ def main():
     args = parser.parse_args()
 
     if not os.getenv("ANTHROPIC_API_KEY"):
-        print("FATAL: ANTHROPIC_API_KEY not set.")
-        sys.exit(1)
+        _fatal("FATAL: ANTHROPIC_API_KEY not set.")
 
     if args.playlist:
         try:
             service = get_youtube_service()
         except Exception as e:
-            print(f"FATAL: YouTube auth failed: {e}")
-            sys.exit(1)
+            _fatal(f"FATAL: YouTube auth failed: {e}")
 
         videos = get_playlist_videos(service, PLAYLIST_ID)
         if not videos:
@@ -395,4 +399,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"\nUnexpected error: {e}")
+        input("\nPress Enter to close...")
+        sys.exit(1)

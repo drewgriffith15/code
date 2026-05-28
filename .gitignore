@@ -18,5 +18,10 @@ Thumbs.db
 .credentials.json
 .out-of-scope/
 skills/
+<<<<<<< HEAD
 lessons/
 Code/TANK/
+=======
+temp/
+PRDs/
+>>>>>>> 6b931320b7e221b33ff18098ac45bf3f1ca0bd1d
