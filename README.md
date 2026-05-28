@@ -2,7 +2,7 @@
 
 Personal tools and scripts for Drew Griffith.
 
-Covers meal planning (remy.py), theology lesson pipeline (theo*.py), YouTube transcript ingest (ingest_youtube.py), and personal automation utilities.
+Covers meal planning (remy.py), theology lesson pipeline (theo*.py), workout program publishing (kilo.py), YouTube transcript ingest (ingest_youtube.py), and personal automation utilities.
 
 Skills live in two places:
 - Project-specific skills: `.claude/skills/` (this repo)
