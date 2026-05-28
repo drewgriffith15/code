@@ -1,7 +1,6 @@
 ---
 name: remy
 description: Weekly dinner planning conversation for REMY. Use this skill when the user types /remy or asks to plan meals for the week, plan dinners, figure out what to cook this week, or any similar request about weekly meal planning. This is Drew's personal system — recipes live in Construct wiki (food/recipes, tagged remy). Proposes 5 dinners respecting pacing, effort, and dietary constraints, then pushes the confirmed plan and grocery list to Notion.
-model: claude-sonnet-4-6
 ---
 
 # REMY Skill
@@ -14,12 +13,6 @@ ENV_FILE: `C:\Users\wgriffith2\.claude\.env.personal`
 ## Step 0 — Pre-Flight Checks (Required — Do Not Skip)
 
 **Do these before running any commands. This is not optional.**
-
-### Model Check
-Identify the current model. If it is NOT `claude-sonnet-4-6`:
-- STOP immediately
-- Tell Drew: "REMY requires Sonnet 4.6 for constraint reasoning. Switch with `/model claude-sonnet-4-6`, then re-invoke `/remy`."
-- Do NOT proceed. Do NOT run remy.py. Wait for Drew to switch and re-invoke.
 
 ### Memory Load
 Read `C:\Users\wgriffith2\.claude\projects\C--Users-wgriffith2\memory\project_remy.md` and confirm you have the following in context before proceeding:

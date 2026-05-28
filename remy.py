@@ -377,6 +377,7 @@ def load_data() -> dict:
         "recipes": recipes,
         "ellsworth_proteins": proteins,
         "ellsworth_veggies": veggies,
+        "ellsworth_names": all_names,
         "available_proteins": available_proteins,
         "depleted_proteins": depleted,
         "pantry": pantry,
@@ -690,7 +691,7 @@ Return ONLY a JSON object, no preamble, no markdown fences, matching this exact 
         return None
 
 
-def build_grocery_list(plan, pantry):
+def build_grocery_list(plan, pantry, ellsworth_names=frozenset()):
     aoh_keys = set()
     for group in pantry.get("always_on_hand", {}).values():
         if isinstance(group, list):
@@ -744,12 +745,12 @@ def build_grocery_list(plan, pantry):
             item_str = ing.get("item", "").lower().strip()
             if not item_str:
                 continue
-            if any(e in item_str for e in _ELLSWORTH_NAMES):
+            if any(e in item_str for e in ellsworth_names):
                 continue
             if any(a in item_str for a in aoh_keys):
                 continue
 
-            dedup_key = item_str[:25]
+            dedup_key = (day.get("meal", ""), item_str)
             if dedup_key in seen_items:
                 continue
             seen_items.add(dedup_key)
@@ -1106,7 +1107,7 @@ def cmd_push(args):
         plan = json.load(f)
     data = load_data()
     meal_pages = push_plan(plan, data["notion_config"])
-    grocery = build_grocery_list(plan, data["pantry"])
+    grocery = build_grocery_list(plan, data["pantry"], data["ellsworth_names"])
     grocery_page_id = push_grocery(grocery, data["notion_config"])
     push_hub_week(data["notion_config"], plan.get("week_of", ""), meal_pages, grocery_page_id)
     save_history(plan)
@@ -1117,7 +1118,7 @@ def cmd_full(args):
     _print_plan(plan)
     data = load_data()
     meal_pages = push_plan(plan, data["notion_config"])
-    grocery = build_grocery_list(plan, data["pantry"])
+    grocery = build_grocery_list(plan, data["pantry"], data["ellsworth_names"])
     grocery_page_id = push_grocery(grocery, data["notion_config"])
     push_hub_week(data["notion_config"], plan.get("week_of", ""), meal_pages, grocery_page_id)
     save_history(plan)
