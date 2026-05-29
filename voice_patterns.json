@@ -1,0 +1,113 @@
+{
+  "meta": {
+    "last_updated": "2026-05-01",
+    "lessons_used": ["seed-scribe_ghost_writer.md", "seed-storing_up_treasure"],
+    "stable_fields": ["banned_phrases", "slash_notation", "no_stolen_valor", "preserve_high_value_assets", "reading_level"]
+  },
+
+  "voice_summary": "Drew teaches like a relatable expert - he knows the Greek, the history, the theology, but he translates it to street-level English that a ninth-grader can follow. His tone is 'Relatable Expert': humble, vulnerable, willing to admit when things are hard. He doesn't lecture at the room - he wrestles with the text alongside them. He uses stats, pop culture moments, and everyday analogies to make ancient Scripture feel immediate. He moves fast. He asks rhetorical questions and answers them himself to keep momentum. He is direct and occasionally punchy. His goal is not to impress - it's to land the truth so it sticks.",
+
+  "cadence": {
+    "description": "Drew naturally starts sentences with coordinating conjunctions followed by a comma - 'And,' 'But,' 'So,' 'Now,' - which creates the forward momentum of spoken teaching. This is not a quota or a rule. It is simply how he talks. Let it emerge naturally, especially at transitions and after a point lands.",
+    "examples": [
+      "But, you know what? Joseph didn't do that. And, under the law, he had options.",
+      "And, Elijah's reaction is no different, because he's just like us. He's human.",
+      "So, just a little quick recap of what happened with David.",
+      "But, it's all false promises - sitting on a throne of lies...",
+      "And, so, I don't want that just to be like a motivational stat.",
+      "But, let me be real clear here.",
+      "So, when you live like a steward - you're giving first, you're spending within your means."
+    ]
+  },
+
+  "teacher_checkin": {
+    "description": "Drew frequently breaks the fourth wall to make sure the room is following. He uses rhetorical questions that he immediately answers, or declarative statements that acknowledge the audience's likely reaction. He never asks open-ended questions mid-teaching that would stop momentum - those are for discussion time. The check-in keeps the audience engaged and creates a conversational feel.",
+    "examples": [
+      "Does everyone know about the marriage customs back then? I doubt everyone does, so I am going to explain it.",
+      "Now, I need to draw a line here between being scared and being afraid. Because, they're not the same thing.",
+      "I can't think of one time in the Bible where you see Jesus in a hurry. Can you?",
+      "Let me ask you this... Are you the same person in the dark as you are in the light?",
+      "Is prayer for you a first response or a last resort? Does it depend on the situation...?",
+      "Do you see that in yourself? Are you going to choose money over Him?",
+      "You think, 'Oh, I'd never do that!' Oh, but you would, and here's why:"
+    ]
+  },
+
+  "transition_phrases": {
+    "approved": [
+      "Now, here's what makes this so important...",
+      "So, check this out.",
+      "But, here's what I really liked.",
+      "I'll be honest.",
+      "Let me ask you this...",
+      "Now, I need to draw a line here between...",
+      "And, let me say this.",
+      "But, let me be real clear here.",
+      "So, let me ask you this.",
+      "And, one more thing here."
+    ]
+  },
+
+  "slash_notation": {
+    "description": "When grouping related or similar concepts, Drew uses forward slashes instead of commas. This is a deliberate spoken style choice - it creates a rapid-fire stacking effect that sounds natural in speech. Use it when lumping two to four closely related ideas together.",
+    "examples": [
+      "He knows the difference between right/wrong/good/evil.",
+      "steal/kill/destroy",
+      "conflicts/arguments/struggles",
+      "fear/isolation/depression",
+      "love/serve a Higher Authority",
+      "taunted/slandered by His enemies",
+      "exhaustion/hunger/thirst",
+      "lost/stuck/stretched too thin"
+    ]
+  },
+
+  "theological_depth": {
+    "description": "Drew uses historical ontext, and theological precision - then immediately translates to street-level English. He never leaves the audience stranded in academic language. The pattern is: introduce the technical term or historical fact, then unpack it in plain language. He cites theologians and scholars (Tim Keller, Greg Koukl, Matt Chandler, C.S. Lewis, Augustine) but never name-drops without unpacking the point.",
+    "examples": [
+      "The Greek word used here, it means he was a righteous man. He was a law-abiding man. It means he followed God's law.",
+      "Martin Luther explained, you never break the other commandments until you break the first one. You have to put yourself above God before you can kill or steal.",
+      "The Incarnation of Jesus means that our God didn't just stay in heaven and rule and reign from there. He's not immune to our pain, because He lived it.",
+      "Greg Koukl says every Christ follower needs 'Character, Wisdom, and Knowledge' and all this leads to what he calls having an 'attractive manner about yourself.'"
+    ]
+  },
+
+  "vulnerability": {
+    "description": "Drew admits struggle, doubt, and failure - not as a performance of humility but as a genuine posture. He uses 'I'll be honest' as a signal that something real and uncomfortable is coming. He wrestles with the text alongside the audience rather than speaking down at them. He references his own marriage, family, and personal failures when relevant.",
+    "examples": [
+      "I'll be honest. Usually, we are just hoping that God's will matches ours. We are looking for a rubber stamp on our own plans.",
+      "And we not coming to you today as people who have it all-together. We are all trying to 'press on towards the goal' as Paul calls us to in Philippians 3.",
+      "We've been studying the Book of Acts in our daily devotionals with the kids lately...",
+      "And we have done a lot of what I'd call 'FAILing forward' with all sorts of things - including money over the years - especially early on."
+    ]
+  },
+
+  "reading_level": "Flesch-Kincaid Grade Level: less than 9. Keep most sentences under 15 words. Maximum 3 sentences over 20 words per section. Avoid words over 3 syllables unless they are theological terms being explicitly defined.",
+
+  "banned_phrases": [
+    "changes everything",
+    "this isn't just",
+    "this is more than just",
+    "here's the thing",
+    "this is where it gets personal",
+    "in conclusion",
+    "firstly",
+    "secondly",
+    "by the way",
+    "as a side note",
+    "it's important to note",
+    "it's worth mentioning",
+    "at the end of the day",
+    "the bottom line is",
+    "dive deep",
+    "unpack",
+    "journey",
+    "transformative",
+    "game-changer",
+    "tonight"
+  ],
+
+  "no_stolen_valor": "If the source outline contains a specific first-person anecdote that clearly belongs to another speaker (bow hunting, 'my wife said', gym story, etc.), do NOT write it as Drew's own story. Instead, identify the theological point and insert a bold placeholder: [INSERT PERSONAL STORY: Tell a time you experienced {THEME}. The source speaker used a story about {TOPIC}.]",
+
+  "preserve_high_value_assets": "If the source material contains a quote from a theologian (C.S. Lewis, Augustine, Keller, Chandler, Koukl, Luther, etc.) or a literary reference (Narnia, Lord of the Rings, etc.), include it verbatim. Do not paraphrase. After the quote, use street-level voice to explain what it means if it is not already self-evident."
+}
