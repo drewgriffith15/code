@@ -21,3 +21,13 @@ lessons/
 Code/TANK/
 temp/
 PRDs/
+
+# Walled garden: NEVER track work (Liberty University / BitBucket) files in this personal GitHub repo.
+# This home dir is the personal `code` repo; the work folder lives inside it. Keep them separate.
+/Dropbox (Liberty University)/
+
+# Claude credentials and tokens: NEVER commit these to the personal repo.
+.claude/.env.personal
+.claude/.env.work
+.claude/penny_gmail_credentials.json
+.claude/penny_gmail_token.pkl
